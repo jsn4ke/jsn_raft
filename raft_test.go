@@ -2,9 +2,10 @@ package jsn_raft
 
 import (
 	_ "embed"
-	"gopkg.in/yaml.v3"
 	"testing"
 	"time"
+
+	"gopkg.in/yaml.v3"
 )
 
 //go:embed test_server_list.yml
