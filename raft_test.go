@@ -4,30 +4,37 @@ import (
 	_ "embed"
 	"gopkg.in/yaml.v3"
 	"testing"
+	"time"
 )
-
-func TestNewRaft(t *testing.T) {
-	clusterNum = 5
-	globalWg.Add(clusterNum)
-	cluster := []string{
-		"127.0.0.1:34591",
-		"127.0.0.1:34592",
-		"127.0.0.1:34593",
-		"127.0.0.1:34594",
-		"127.0.0.1:34595",
-	}
-	for _, v := range cluster {
-		v := v
-		go NewRaft(v, v, cluster)
-	}
-	globalWg.Wait()
-	for {
-
-	}
-}
 
 //go:embed test_server_list.yml
 var serverConfig []byte
+
+type testLog struct {
+	term  uint64
+	index uint64
+	key   uint64
+}
+
+func (t *testLog) SetTerm(term uint64) {
+	t.term = term
+}
+
+func (t *testLog) SetIndex(index uint64) {
+	t.index = index
+}
+
+func (t *testLog) Term() uint64 {
+	return t.term
+}
+
+func (t *testLog) Index() uint64 {
+	return t.index
+}
+
+func (t *testLog) Cmd() []byte {
+	return nil
+}
 
 func TestNewRaftNew(t *testing.T) {
 	config := new(ServerConfig)
@@ -35,10 +42,25 @@ func TestNewRaftNew(t *testing.T) {
 	if nil != err {
 		panic(err)
 	}
+	var rs []*RaftNew
 	for _, v := range config.List {
-		NewRaftNew(v.Who, *config)
+		r := NewRaftNew(v.Who, *config)
+		rs = append(rs, r)
 	}
+	tk := time.NewTicker(time.Second)
 	for {
+		select {
+		case <-tk.C:
+			for _, v := range rs {
+				if v.getServerState() == leader {
+					v.logModify <- &testLog{
+						term:  0,
+						index: 0,
+						key:   uint64(time.Now().Unix()),
+					}
+				}
+			}
+		}
 
 	}
 }

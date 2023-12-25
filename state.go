@@ -1,5 +1,11 @@
 package jsn_raft
 
+const (
+	follower int32 = iota
+	candidate
+	leader
+)
+
 type (
 	// 所有服务器上的持久性状态 (在响应 RPC 请求之前，已经更新到了稳定的存储设备)
 	persistentState struct {

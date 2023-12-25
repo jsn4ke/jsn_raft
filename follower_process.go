@@ -8,13 +8,20 @@ type followerProcess struct {
 	nextIndex  uint64
 	matchIndex uint64
 
-	notify    <-chan struct{}
+	match chan<- struct {
+		who   string
+		index uint64
+	}
+
+	notify    chan struct{}
 	heartbeat <-chan struct{}
 	stop      <-chan struct{}
 	usurper   chan<- struct{}
 }
 
 func (r *RaftNew) heartbeat(p *followerProcess) (done bool) {
+	r.logger.Debug("[%v] heartbeat to %v",
+		r.who, p.who)
 	req := &AppendEntriesRequest{
 		Term:         r.getCurrentTerm(),
 		LeaderId:     []byte(r.who),
@@ -40,16 +47,18 @@ func (r *RaftNew) heartbeat(p *followerProcess) (done bool) {
 	return
 }
 
-func (r *RaftNew) replicate(p *followerProcess, nextLogIndex uint64) (done bool) {
+func (r *RaftNew) replicate(p *followerProcess, lastLogIndex uint64) (done bool) {
+	r.logger.Debug("[%v] replicate to %v",
+		r.who, p.who)
 	req := &AppendEntriesRequest{
 		Term:         r.getCurrentTerm(),
 		LeaderId:     []byte(r.who),
 		PrevLogIndex: 0,
 		PrevLogTerm:  0,
 		Entries:      nil,
-		LeaderCommit: 0,
+		LeaderCommit: r.getCommitIndex(),
 	}
-	jlog := r.getLog(nextLogIndex)
+	jlog := r.getLog(p.nextIndex)
 	if nil == jlog {
 		return
 	}
@@ -57,9 +66,7 @@ func (r *RaftNew) replicate(p *followerProcess, nextLogIndex uint64) (done bool)
 	req.PrevLogIndex = jlog.Index()
 	req.PrevLogTerm = jlog.Term()
 
-	lastLogIndex, _ := r.lastLog()
-
-	req.Entries = r.logEntries(nextLogIndex, lastLogIndex)
+	req.Entries = r.logEntries(p.nextIndex, lastLogIndex)
 
 	resp := new(AppendEntriesResponse)
 
@@ -78,6 +85,14 @@ func (r *RaftNew) replicate(p *followerProcess, nextLogIndex uint64) (done bool)
 	}
 	if resp.Success {
 		p.nextIndex = lastLogIndex + 1
+		p.matchIndex = lastLogIndex
+
+		p.match <- struct {
+			who   string
+			index uint64
+		}{who: p.who, index: lastLogIndex}
+	} else {
+		p.nextIndex--
 	}
 	return
 }

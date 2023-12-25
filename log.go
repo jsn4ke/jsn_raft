@@ -1,6 +1,8 @@
 package jsn_raft
 
 type JLog interface {
+	SetTerm(term uint64)
+	SetIndex(index uint64)
 	Term() uint64
 	Index() uint64
 	Cmd() []byte
@@ -65,19 +67,13 @@ func (r *RaftNew) logDeleteFrom(logIndex uint64) {
 	}
 }
 
-func (r *RaftNew) logStore(entries []JLog) {
-	r.logs = append(r.logs, entries...)
+func (r *RaftNew) appendLog(log JLog) {
+	lastIndex, _ := r.lastLog()
+	log.SetIndex(lastIndex + 1)
+	log.SetTerm(r.getCurrentTerm())
+	r.logs = append(r.logs, log)
 }
 
-func (r *RaftNew) logIn() {
-
-	if r.getServerState() != leader {
-		return
-	}
-
-	select {
-	case r.logModify <- struct{}{}:
-	default:
-
-	}
+func (r *RaftNew) logStore(entries []JLog) {
+	r.logs = append(r.logs, entries...)
 }

@@ -10,6 +10,7 @@ func (r *RaftNew) runFollower() {
 		select {
 		case wrap := <-r.rpcChannel:
 			r.handlerRpc(wrap)
+			timeout = time.After(randomTimeout(r.heartbeatTimeout()))
 		case <-timeout:
 			r.setServerState(candidate)
 			return

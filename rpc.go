@@ -7,6 +7,38 @@ import (
 	"time"
 )
 
+const (
+	AppendEntries = "RaftNew.AppendEntries"
+	Vote          = "RaftNew.Vote"
+)
+
+// term uint64, candidateId []byte, lastLogIndex uint64, lastLogTerm uint64
+type VoteRequest struct {
+	Term         uint64 `json:"term,omitempty"`
+	CandidateId  []byte `json:"candidate_id,omitempty"`
+	LastLogIndex uint64 `json:"last_log_index,omitempty"`
+	LastLogTerm  uint64 `json:"last_log_term,omitempty"`
+}
+type VoteResponse struct {
+	CurrentTerm uint64 `json:"current_term,omitempty"`
+	VoteGranted bool   `json:"vote_granted,omitempty"`
+}
+
+// term uint64, leaderId []byte, prevLogIndex uint64, prevLogTerm uint64, entries []JLog, leaderCommit uint64
+type AppendEntriesRequest struct {
+	Term         uint64
+	LeaderId     []byte
+	PrevLogIndex uint64
+	PrevLogTerm  uint64
+	Entries      []JLog
+	LeaderCommit uint64
+}
+
+type AppendEntriesResponse struct {
+	CurrentTerm uint64
+	Success     bool
+}
+
 func (r *RaftNew) Vote(args *VoteRequest, reply *VoteResponse) error {
 	wrap := &rpcWrap{
 		In:   args,
@@ -106,6 +138,11 @@ func (r *RaftNew) appendEntries(args *AppendEntriesRequest, reply *AppendEntries
 	reply.CurrentTerm = r.getCurrentTerm()
 	reply.Success = false
 
+	defer func() {
+		r.logger.Debug("[%v] append entries from %s commit %v",
+			r.who, args.LeaderId, r.getCommitIndex())
+	}()
+
 	if args.Term < r.getCurrentTerm() {
 		return nil
 	} else if args.Term > r.getCurrentTerm() {
@@ -149,5 +186,6 @@ func (r *RaftNew) appendEntries(args *AppendEntriesRequest, reply *AppendEntries
 		}
 	}
 	reply.Success = true
+
 	return nil
 }
