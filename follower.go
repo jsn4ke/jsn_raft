@@ -4,9 +4,9 @@ import "time"
 
 func (r *RaftNew) runFollower() {
 
-	timeout := time.After(randomTimeout(r.heartbeatTimeout()))
+	timeout := time.NewTimer(randomTimeout(r.heartbeatTimeout()))
 	if r.firstFollower {
-		timeout = time.After(0)
+		timeout.Reset(0)
 		r.firstFollower = false
 	}
 
@@ -14,8 +14,8 @@ func (r *RaftNew) runFollower() {
 		select {
 		case wrap := <-r.rpcChannel:
 			r.handlerRpc(wrap)
-			timeout = time.After(randomTimeout(r.heartbeatTimeout()))
-		case <-timeout:
+			timeout.Reset(randomTimeout(r.heartbeatTimeout()))
+		case <-timeout.C:
 			r.setServerState(candidate)
 			return
 		}

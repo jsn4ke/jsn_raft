@@ -15,9 +15,9 @@ func (r *RaftNew) runLeader() {
 		// 通知所有replication结束
 		replicationDone = make(chan struct{})
 		// 通知leader任期结束
-		usurper = make(chan struct{})
+		usurper = make(chan uint64, 1)
 		// 通知leader更新自身的commit index
-		commitmentNotify = make(chan struct{})
+		commitmentNotify = make(chan struct{}, 1)
 		// 通知所有的replication有新的数据拉取
 		fetchList []chan struct{}
 	)
@@ -52,7 +52,7 @@ func (r *RaftNew) runLeader() {
 		if v.Who == r.who {
 			continue
 		}
-		fetch := make(chan struct{})
+		fetch := make(chan struct{}, 1)
 		fetchList = append(fetchList, fetch)
 		rpl := newReplication(r, commitment, v.Who, replicationDone, usurper, fetch)
 		r.safeGo("replication", func() {
@@ -69,12 +69,20 @@ func (r *RaftNew) runLeader() {
 		close(replicationDone)
 	}()
 
+	// 清空下
+	select {
+	case <-r.leaderTransfer:
+	default:
+	}
+
 	// 开始leader的逻辑
 	for leader == r.getServerState() {
 		select {
-		case <-usurper:
-			// 立即判断当前状态
-			continue
+		case term := <-usurper:
+			if term > r.getCurrentTerm() {
+				r.setServerState(follower)
+				r.setCurrentTerm(term)
+			}
 		case <-commitmentNotify:
 
 			lastCommitIndex := r.getCommitIndex()
@@ -92,6 +100,9 @@ func (r *RaftNew) runLeader() {
 			for _, v := range fetchList {
 				notifyChan(v)
 			}
+
+		case <-r.leaderTransfer:
+			r.setServerState(follower)
 		}
 	}
 }

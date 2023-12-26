@@ -7,7 +7,6 @@ func (r *RaftNew) runCandidate() {
 		r.who)
 	r.addCurrentTerm()
 
-	r.voteFor = r.who
 	lastLogIndex, lastLogTerm := r.lastLog()
 	req := &VoteRequest{
 		Term:         r.getCurrentTerm(),
@@ -25,7 +24,7 @@ func (r *RaftNew) runCandidate() {
 		who := v.Who
 		if who == r.who {
 			grantedVotes++
-			r.voteFor = r.who
+			r.setVoteFor(who)
 		} else {
 			r.safeGo("peer vote request", func() {
 				resp := &VoteResponse{}
@@ -58,6 +57,7 @@ func (r *RaftNew) runCandidate() {
 			}
 			if grantedVotes >= needVotes {
 				r.setServerState(leader)
+				r.voteFor = r.who
 			}
 		case <-electionTimer:
 			// 重新开始投票

@@ -55,6 +55,21 @@ func (c *commitment) updateIndex(who string, nextIndex uint64, matchIndex uint64
 	c.adapt()
 }
 
+func (c *commitment) stepMinusNextIndex(who string) {
+	c.rw.Lock()
+	defer c.rw.Unlock()
+
+	slot, ok := c.who[who]
+	if !ok {
+		return
+	}
+	index := c.nextIndex[slot]
+	if 1 >= index {
+		return
+	}
+	c.nextIndex[slot]--
+}
+
 func (c *commitment) adapt() {
 	c.rw.RLock()
 	defer c.rw.RUnlock()

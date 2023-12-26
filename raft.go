@@ -22,7 +22,8 @@ type RaftNew struct {
 
 	logger JLogger
 
-	voteFor string
+	voteFor     string
+	voteForTerm uint64
 
 	config ServerConfig
 
@@ -30,7 +31,9 @@ type RaftNew struct {
 
 	rpcChannel chan *rpcWrap
 
-	logModify chan *JsnLog
+	// debug
+	logModify      chan *JsnLog
+	leaderTransfer chan struct{}
 }
 
 func NewRaftNew(who string, config ServerConfig) *RaftNew {
@@ -42,8 +45,11 @@ func NewRaftNew(who string, config ServerConfig) *RaftNew {
 	r.config = config
 	r.logger = new(defaultLogger)
 	r.rpcChannel = make(chan *rpcWrap, 256)
-	r.logModify = make(chan *JsnLog, 256)
 
+	// debug//////
+	r.logModify = make(chan *JsnLog, 256)
+	r.leaderTransfer = make(chan struct{})
+	//////////////
 	svr := rpc.NewServer()
 	if err := svr.RegisterName("RaftNew", r); nil != err {
 		panic(err)
@@ -96,7 +102,7 @@ func (r *RaftNew) getCurrentTerm() uint64 {
 
 func (r *RaftNew) setServerState(state int32) {
 	old := atomic.SwapInt32(&r.serverState, state)
-	r.logger.Info("[%v] state from %v to %v",
+	r.logger.Info("[%v] state from %v to %v ",
 		r.who, old, state)
 }
 
@@ -122,4 +128,9 @@ func (r *RaftNew) setCommitIndex(index uint64) {
 	old := atomic.SwapUint64(&r.commitIndex, index)
 	r.logger.Debug("[%v] commit update from %v to %v",
 		r.who, old, index)
+}
+
+func (r *RaftNew) setVoteFor(who string) {
+	r.voteFor = who
+	r.voteForTerm = r.getCurrentTerm()
 }

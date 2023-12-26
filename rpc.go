@@ -4,6 +4,7 @@ import (
 	"errors"
 	"net"
 	"net/rpc"
+	"sync"
 	"time"
 )
 
@@ -32,6 +33,7 @@ type AppendEntriesRequest struct {
 	PrevLogTerm  uint64
 	Entries      []*JsnLog
 	LeaderCommit uint64
+	Heartbeat    bool
 }
 
 type AppendEntriesResponse struct {
@@ -43,7 +45,7 @@ func (r *RaftNew) Vote(args *VoteRequest, reply *VoteResponse) error {
 	wrap := &rpcWrap{
 		In:   args,
 		Resp: reply,
-		Done: make(chan error),
+		Done: make(chan error, 1),
 	}
 	r.rpcChannel <- wrap
 	err := <-wrap.Done
@@ -54,7 +56,7 @@ func (r *RaftNew) AppendEntries(args *AppendEntriesRequest, reply *AppendEntries
 	wrap := &rpcWrap{
 		In:   args,
 		Resp: reply,
-		Done: make(chan error),
+		Done: make(chan error, 1),
 	}
 	r.rpcChannel <- wrap
 	err := <-wrap.Done
@@ -78,19 +80,29 @@ func (r *RaftNew) handlerRpc(wrap *rpcWrap) {
 	wrap.Done <- err
 }
 
+var (
+	clis = sync.Map{}
+)
+
 func (r *RaftNew) rpcCall(who string, service string, in, out any) error {
-	// todo
-	dial, err := net.Dial("tcp", who)
-	if nil != err {
-		r.logger.Error("[%v] get handlerRpc error from %v err %v",
-			r.who, who, err)
-		return nil
+	value, ok := clis.Load(who)
+	if !ok {
+		dial, err := net.Dial("tcp", who)
+		if nil != err {
+			r.logger.Error("[%v] get handlerRpc error from %v err %v",
+				r.who, who, err)
+			return err
+		}
+		cli := rpc.NewClient(dial)
+		clis.Store(who, cli)
+		value, _ = clis.Load(who)
 	}
-	cli := rpc.NewClient(dial)
+	cli, _ := value.(*rpc.Client)
 	if nil == cli {
-		return errors.New("handlerRpc connect fail")
+		r.logger.Error("[%v] get rpc client error",
+			r.who)
+		return errors.New("get rpc client error")
 	}
-	defer cli.Close()
 	select {
 	case <-time.After(r.rpcTimeout()):
 		return errors.New("handlerRpc timeout")
@@ -135,7 +147,11 @@ func (r *RaftNew) vote(args *VoteRequest, reply *VoteResponse) error {
 		reply.CurrentTerm = r.getCurrentTerm()
 	}
 
-	if 0 != len(r.voteFor) && r.voteFor != string(args.CandidateId) {
+	if r.voteForTerm == args.Term {
+		if 0 != len(r.voteFor) && r.voteFor != string(args.CandidateId) {
+			return nil
+		}
+	} else if r.voteForTerm > args.Term {
 		return nil
 	}
 
@@ -147,7 +163,9 @@ func (r *RaftNew) vote(args *VoteRequest, reply *VoteResponse) error {
 		return nil
 	}
 	reply.VoteGranted = true
-	r.voteFor = string(args.CandidateId)
+
+	r.setVoteFor(string(args.CandidateId))
+
 	r.logger.Debug("[%v] vote for %v term %v",
 		r.who, string(args.CandidateId), r.getCurrentTerm())
 	return nil
@@ -160,8 +178,12 @@ func (r *RaftNew) appendEntries(args *AppendEntriesRequest, reply *AppendEntries
 	reply.Success = false
 
 	defer func() {
-		r.logger.Debug("[%v] append entries from %s commit %v",
-			r.who, args.LeaderId, r.getCommitIndex())
+		if !args.Heartbeat {
+
+			r.logger.Debug("[%v] append entries from %s commit %v res %v",
+				r.who, args.LeaderId, r.getCommitIndex(), reply.Success)
+		}
+
 	}()
 
 	if args.Term < r.getCurrentTerm() {
@@ -174,8 +196,14 @@ func (r *RaftNew) appendEntries(args *AppendEntriesRequest, reply *AppendEntries
 		reply.CurrentTerm = r.getCurrentTerm()
 	}
 
-	if !r.matchLog(args.PrevLogIndex, args.PrevLogTerm) {
+	if args.Heartbeat {
 		return nil
+	}
+
+	if 0 != args.PrevLogIndex {
+		if !r.matchLog(args.PrevLogIndex, args.PrevLogTerm) {
+			return nil
+		}
 	}
 
 	lastLogIndex, _ := r.lastLog()
@@ -183,7 +211,8 @@ func (r *RaftNew) appendEntries(args *AppendEntriesRequest, reply *AppendEntries
 	var entries []*JsnLog
 	for i, entry := range args.Entries {
 		if entry.Index() > lastLogIndex {
-			continue
+			entries = args.Entries[i:]
+			break
 		}
 		jlog := r.getLog(entry.Index())
 		if nil == jlog {

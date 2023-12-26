@@ -32,7 +32,7 @@ func (r *RaftNew) matchLog(lastLogIndex, lastLogTerm uint64) bool {
 	if 0 == length {
 		return false
 	}
-	for 0 != length {
+	for ; 0 != length; length-- {
 		log := r.logs[length-1]
 		if log.Index() > lastLogIndex {
 			continue

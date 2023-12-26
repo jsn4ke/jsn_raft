@@ -10,15 +10,15 @@ type ServerConfig struct {
 }
 
 func (r *RaftNew) heartbeatTimeout() time.Duration {
-	return time.Minute
+	return time.Microsecond * 2000
 }
 
 func (r *RaftNew) electionTimeout() time.Duration {
-	return time.Second * 1
+	return time.Millisecond * 2000
 }
 
 func (r *RaftNew) rpcTimeout() time.Duration {
-	return time.Minute
+	return time.Millisecond * 1000
 }
 
 func (r *RaftNew) orphanTimeout() time.Duration {

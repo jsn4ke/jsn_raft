@@ -3,12 +3,17 @@ package jsn_raft
 import "time"
 
 func newReplication(raft *RaftNew, commit *commitment, who string,
-	done chan struct{}, usurper <-chan struct{}, fetch chan<- struct{}) *replication {
+	done <-chan struct{}, usurper chan<- uint64, fetch <-chan struct{}) *replication {
 	r := new(replication)
-	r.raft = raft
+
 	r.who = who
-	r.done = done
+	r.raft = raft
 	r.commitment = commit
+
+	r.done = done
+	r.usurper = usurper
+	r.fetch = fetch
+
 	r.retry = make(chan struct{})
 	return r
 }
@@ -21,7 +26,7 @@ type replication struct {
 
 	fetch   <-chan struct{}
 	done    <-chan struct{}
-	usurper chan<- struct{}
+	usurper chan<- uint64
 
 	retry chan struct{}
 }
@@ -34,6 +39,7 @@ func (r *replication) heartbeat() {
 		PrevLogTerm:  0,
 		Entries:      []*JsnLog{},
 		LeaderCommit: 0,
+		Heartbeat:    true,
 	}
 	resp := new(AppendEntriesResponse)
 	err := r.raft.rpcCallWithDone(r.who, AppendEntries, req, resp, r.done)
@@ -43,9 +49,10 @@ func (r *replication) heartbeat() {
 		return
 	}
 	if resp.CurrentTerm > r.raft.getCurrentTerm() {
-		r.raft.setServerState(follower)
-		r.raft.setCurrentTerm(resp.CurrentTerm)
-		notifyChan(r.usurper)
+		select {
+		case r.usurper <- resp.CurrentTerm:
+		default:
+		}
 		return
 	}
 }
@@ -62,12 +69,16 @@ func (r *replication) replicateTo() {
 
 	nextIndex := r.commitment.getNextIndex(r.who)
 
-	jlog := r.raft.getLog(nextIndex)
-	if nil == jlog {
-		return
+	if 1 < nextIndex {
+		jlog := r.raft.getLog(nextIndex - 1)
+		if nil == jlog {
+			r.raft.logger.Error("[%v] replicate to %v no log %v in raft",
+				r.raft.who, r.who, nextIndex-1)
+			return
+		}
+		req.PrevLogIndex = jlog.Index()
+		req.PrevLogTerm = jlog.Term()
 	}
-	req.PrevLogIndex = jlog.Index()
-	req.PrevLogTerm = jlog.Term()
 
 	req.LeaderCommit = r.raft.getCommitIndex()
 
@@ -82,9 +93,10 @@ func (r *replication) replicateTo() {
 		return
 	}
 	if resp.CurrentTerm > r.raft.getCurrentTerm() {
-		r.raft.setServerState(follower)
-		r.raft.setCurrentTerm(resp.CurrentTerm)
-		notifyChan(r.usurper)
+		select {
+		case r.usurper <- resp.CurrentTerm:
+		default:
+		}
 		return
 	}
 	if resp.Success {
@@ -93,14 +105,20 @@ func (r *replication) replicateTo() {
 		}
 		index := req.Entries[len(req.Entries)-1].Index()
 		r.commitment.updateIndex(r.who, index+1, index)
+
+		r.raft.logger.Info("[%v] replicate to %v success next index modify %v",
+			r.raft.who, r.who, r.commitment.getNextIndex(r.who))
 	} else {
+		r.commitment.stepMinusNextIndex(r.who)
+		r.raft.logger.Info("[%v] replicate to %v failure next index modify %v",
+			r.raft.who, r.who, r.commitment.getNextIndex(r.who))
 		notifyChan(r.retry)
 		return
 	}
 }
 
 func (r *replication) run() {
-	tk := time.NewTimer(randomTimeout(r.raft.heartbeatTimeout() / 5))
+	tk := time.NewTimer(randomTimeout(r.raft.heartbeatTimeout() / 3))
 	for {
 		select {
 		case <-r.done:
@@ -109,7 +127,9 @@ func (r *replication) run() {
 			r.heartbeat()
 			tk.Reset(randomTimeout(r.raft.heartbeatTimeout() / 5))
 		case <-r.fetch:
-
+			r.replicateTo()
+		case <-r.retry:
+			r.replicateTo()
 		}
 	}
 }
