@@ -1,4 +1,4 @@
-module github.com/sogues/jsn_raft/v2
+module github.com/jsn4ke/jsn_raft/v2
 
 go 1.21.0
 

@@ -1,11 +1,17 @@
 package jsn_raft
 
-type JLog interface {
-	SetTerm(term uint64)
-	SetIndex(index uint64)
-	Term() uint64
-	Index() uint64
-	Cmd() []byte
+type JsnLog struct {
+	JIndex uint64
+	JTerm  uint64
+	JData  []byte
+}
+
+func (l *JsnLog) Index() uint64 {
+	return l.JIndex
+}
+
+func (l *JsnLog) Term() uint64 {
+	return l.JTerm
 }
 
 func (r *RaftNew) lastLog() (lastLogIndex, lastLogTerm uint64) {
@@ -14,6 +20,11 @@ func (r *RaftNew) lastLog() (lastLogIndex, lastLogTerm uint64) {
 	}
 	log := r.logs[len(r.logs)-1]
 	return log.Index(), log.Term()
+}
+
+func (r *RaftNew) lastLogIndex() uint64 {
+	index, _ := r.lastLog()
+	return index
 }
 
 func (r *RaftNew) matchLog(lastLogIndex, lastLogTerm uint64) bool {
@@ -33,7 +44,7 @@ func (r *RaftNew) matchLog(lastLogIndex, lastLogTerm uint64) bool {
 	return false
 }
 
-func (r *RaftNew) getLog(logIndex uint64) JLog {
+func (r *RaftNew) getLog(logIndex uint64) *JsnLog {
 	for _, v := range r.logs {
 		if v.Index() < logIndex {
 			continue
@@ -45,8 +56,8 @@ func (r *RaftNew) getLog(logIndex uint64) JLog {
 	return nil
 }
 
-func (r *RaftNew) logEntries(fromIndex, toIndex uint64) []JLog {
-	var ret []JLog
+func (r *RaftNew) logEntries(fromIndex, toIndex uint64) []*JsnLog {
+	var ret []*JsnLog
 	for _, v := range r.logs {
 		if v.Index() >= fromIndex && v.Index() <= toIndex {
 			ret = append(ret, v)
@@ -67,13 +78,13 @@ func (r *RaftNew) logDeleteFrom(logIndex uint64) {
 	}
 }
 
-func (r *RaftNew) appendLog(log JLog) {
+func (r *RaftNew) appendLog(log *JsnLog) {
 	lastIndex, _ := r.lastLog()
-	log.SetIndex(lastIndex + 1)
-	log.SetTerm(r.getCurrentTerm())
+	log.JIndex = lastIndex + 1
+	log.JTerm = r.getCurrentTerm()
 	r.logs = append(r.logs, log)
 }
 
-func (r *RaftNew) logStore(entries []JLog) {
+func (r *RaftNew) logStore(entries []*JsnLog) {
 	r.logs = append(r.logs, entries...)
 }

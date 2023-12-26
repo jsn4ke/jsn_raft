@@ -14,7 +14,7 @@ type (
 		// 当前任期内收到选票的 candidateId，如果没有投给任何候选人 则为空
 		votedFor []byte
 		// 日志条目；每个条目包含了用于状态机的命令，以及领导人接收到该条目时的任期（初始索引为1）
-		logs []JLog
+		logs []*JsnLog
 	}
 	// 所有服务器上的易失性状态
 	volatileState struct {
@@ -32,11 +32,11 @@ type (
 	}
 )
 
-func (s *persistentState) storeLog([]JLog) {
+func (s *persistentState) storeLog([]*JsnLog) {
 
 }
 
-func (s *persistentState) getLog(index uint64) JLog {
+func (s *persistentState) getLog(index uint64) *JsnLog {
 	for _, v := range s.logs {
 		if v.Index() == index {
 			return v

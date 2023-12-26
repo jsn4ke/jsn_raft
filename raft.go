@@ -1,12 +1,10 @@
 package jsn_raft
 
 import (
-	"math/rand"
 	"net"
 	"net/rpc"
 	"sync"
 	"sync/atomic"
-	"time"
 )
 
 type RaftNew struct {
@@ -18,11 +16,7 @@ type RaftNew struct {
 
 	commitIndex uint64
 
-	processorLock sync.Mutex
-	nexted        map[string]uint64
-	matched       map[string]uint64
-
-	logs []JLog
+	logs []*JsnLog
 
 	logger JLogger
 
@@ -34,7 +28,7 @@ type RaftNew struct {
 
 	rpcChannel chan *rpcWrap
 
-	logModify chan JLog
+	logModify chan *JsnLog
 }
 
 func NewRaftNew(who string, config ServerConfig) *RaftNew {
@@ -43,7 +37,7 @@ func NewRaftNew(who string, config ServerConfig) *RaftNew {
 	r.config = config
 	r.logger = new(defaultLogger)
 	r.rpcChannel = make(chan *rpcWrap, 256)
-	r.logModify = make(chan JLog, 256)
+	r.logModify = make(chan *JsnLog, 256)
 
 	svr := rpc.NewServer()
 	if err := svr.RegisterName("RaftNew", r); nil != err {
@@ -74,13 +68,6 @@ func (r *RaftNew) fsm() {
 	}
 }
 
-func (r *RaftNew) notifyChan(ch chan<- struct{}) {
-	select {
-	case ch <- struct{}{}:
-	default:
-	}
-}
-
 func (r *RaftNew) safeGo(name string, f func()) {
 	r.goroutineWaitGroup.Add(1)
 	go func() {
@@ -92,10 +79,6 @@ func (r *RaftNew) safeGo(name string, f func()) {
 		}()
 		f()
 	}()
-}
-
-func randomTimeout(interval time.Duration) time.Duration {
-	return interval + time.Duration(rand.Int63())%interval
 }
 
 func (r *RaftNew) getServerState() int32 {

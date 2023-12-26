@@ -24,13 +24,13 @@ type VoteResponse struct {
 	VoteGranted bool   `json:"vote_granted,omitempty"`
 }
 
-// term uint64, leaderId []byte, prevLogIndex uint64, prevLogTerm uint64, entries []JLog, leaderCommit uint64
+// term uint64, leaderId []byte, prevLogIndex uint64, prevLogTerm uint64, entries []*jsnLog, leaderCommit uint64
 type AppendEntriesRequest struct {
 	Term         uint64
 	LeaderId     []byte
 	PrevLogIndex uint64
 	PrevLogTerm  uint64
-	Entries      []JLog
+	Entries      []*JsnLog
 	LeaderCommit uint64
 }
 
@@ -99,6 +99,28 @@ func (r *RaftNew) rpcCall(who string, service string, in, out any) error {
 	}
 }
 
+func (r *RaftNew) rpcCallWithDone(who string, service string, in, out any, done <-chan struct{}) error {
+	dial, err := net.Dial("tcp", who)
+	if nil != err {
+		r.logger.Error("[%v] get handlerRpc error from %v err %v",
+			r.who, who, err)
+		return nil
+	}
+	cli := rpc.NewClient(dial)
+	if nil == cli {
+		return errors.New("handlerRpc connect fail")
+	}
+	defer cli.Close()
+	select {
+	case <-done:
+		return errors.New("out done")
+	case <-time.After(r.rpcTimeout()):
+		return errors.New("handlerRpc timeout")
+	case call := <-cli.Go(service, in, out, nil).Done:
+		return call.Error
+	}
+}
+
 func (r *RaftNew) vote(args *VoteRequest, reply *VoteResponse) error {
 	reply.CurrentTerm = r.getCurrentTerm()
 	reply.VoteGranted = false
@@ -159,7 +181,7 @@ func (r *RaftNew) appendEntries(args *AppendEntriesRequest, reply *AppendEntries
 
 	lastLogIndex, _ := r.lastLog()
 
-	var entries []JLog
+	var entries []*JsnLog
 	for i, entry := range args.Entries {
 		if entry.Index() > lastLogIndex {
 			continue

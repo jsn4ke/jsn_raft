@@ -2,6 +2,7 @@ package jsn_raft
 
 import (
 	_ "embed"
+	"fmt"
 	"testing"
 	"time"
 
@@ -10,32 +11,6 @@ import (
 
 //go:embed test_server_list.yml
 var serverConfig []byte
-
-type testLog struct {
-	term  uint64
-	index uint64
-	tm    int64
-}
-
-func (t *testLog) SetTerm(term uint64) {
-	t.term = term
-}
-
-func (t *testLog) SetIndex(index uint64) {
-	t.index = index
-}
-
-func (t *testLog) Term() uint64 {
-	return t.term
-}
-
-func (t *testLog) Index() uint64 {
-	return t.index
-}
-
-func (t *testLog) Cmd() []byte {
-	return nil
-}
 
 func TestNewRaftNew(t *testing.T) {
 	config := new(ServerConfig)
@@ -54,10 +29,8 @@ func TestNewRaftNew(t *testing.T) {
 		case <-tk.C:
 			for _, v := range rs {
 				if v.getServerState() == leader {
-					v.logModify <- &testLog{
-						term:  0,
-						index: 0,
-						tm:    time.Now().Unix(),
+					v.logModify <- &JsnLog{
+						JData: []byte(fmt.Sprintf("%v", time.Now().Unix())),
 					}
 				}
 			}

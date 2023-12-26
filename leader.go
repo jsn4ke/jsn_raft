@@ -1,105 +1,97 @@
 package jsn_raft
 
 import (
-	"sort"
-	"time"
+	"fmt"
+	"sync"
 )
 
 func (r *RaftNew) runLeader() {
 	r.logger.Info("[%v] in leader",
 		r.who)
 
-	orphanTimeout := time.After(randomTimeout(r.orphanTimeout()))
-
-	lastLogIndex, _ := r.lastLog()
 	var (
-		notifies []chan<- struct{}
-		stop     []chan<- struct{}
-		hbs      []chan<- struct{}
-		usurper  = make(chan struct{})
-		match    = make(chan struct {
-			who   string
-			index uint64
-		}, len(r.config.List))
+		// orphanTimeout = time.After(randomTimeout(r.orphanTimeout()))
+		lastLogIndex = r.lastLogIndex()
+		// 通知所有replication结束
+		replicationDone = make(chan struct{})
+		// 通知leader任期结束
+		usurper = make(chan struct{})
+		// 通知leader更新自身的commit index
+		commitmentNotify = make(chan struct{})
+		// 通知所有的replication有新的数据拉取
+		fetchList []chan struct{}
 	)
-	r.nexted = map[string]uint64{}
 
-	r.matched = map[string]uint64{}
+	// 生成leader 易失性数据 next 和 match
+	commitment := &commitment{
+		rw:               sync.RWMutex{},
+		notify:           commitmentNotify,
+		who:              make(map[string]int),
+		nextIndex:        []uint64{},
+		matchIndex:       []uint64{},
+		commitIndex:      0,
+		leaderStartIndex: lastLogIndex,
+	}
 
+	// 初始化 commitment
+	for _, v := range r.config.List {
+		commitment.who[v.Who] = len(commitment.nextIndex)
+		commitment.nextIndex = append(commitment.nextIndex, lastLogIndex+1)
+		commitment.matchIndex = append(commitment.matchIndex, 0)
+	}
+	// 提交leader的首条日志
+	r.appendLog(&JsnLog{
+		JData: []byte(fmt.Sprintf("leader commit log term %v", r.getCurrentTerm())),
+	})
+
+	lastLogIndex = r.lastLogIndex()
+	commitment.updateIndex(r.who, lastLogIndex+1, lastLogIndex)
+
+	// 生成同步逻辑
 	for _, v := range r.config.List {
 		if v.Who == r.who {
 			continue
 		}
-		p := new(followerProcess)
-		p.who = v.Who
-		ch1 := make(chan struct{})
-		ch2 := make(chan struct{})
-		ch3 := make(chan struct{})
-		p.notify = ch1
-		p.heartbeat = ch2
-		p.stop = ch3
-		p.usurper = usurper
-		p.match = match
-
-		notifies = append(notifies, ch1)
-		hbs = append(hbs, ch2)
-		stop = append(stop, ch3)
-
-		p.nextIndex = lastLogIndex
-		p.matchIndex = 0
-
-		r.matched[p.who] = 0
-
-		//p.nextIndex = append(p.nextIndex, lastLogIndex)
-		//p.matchIndex = append(p.matchIndex, 0)
-
-		r.safeGo("follower sync process", func() {
-			r.runReplicate(p)
+		fetch := make(chan struct{})
+		fetchList = append(fetchList, fetch)
+		rpl := newReplication(r, commitment, v.Who, replicationDone, usurper, fetch)
+		r.safeGo("replication", func() {
+			rpl.run()
 		})
+	}
+	// 创建完毕，执行第一次同步
+	for _, v := range fetchList {
+		notifyChan(v)
 	}
 
 	defer func() {
-		for _, v := range stop {
-			r.notifyChan(v)
-		}
+		// 通知所有replication结束
+		close(replicationDone)
 	}()
 
-	for r.getServerState() == leader {
+	// 开始leader的逻辑
+	for leader == r.getServerState() {
 		select {
-		case wrap := <-r.rpcChannel:
-			r.handlerRpc(wrap)
+		case <-usurper:
+			// 立即判断当前状态
+			continue
+		case <-commitmentNotify:
 
-		case <-orphanTimeout:
+			lastCommitIndex := r.getCommitIndex()
 
-		case elem := <-match:
+			newCommitIndex := commitment.getCommitmentIndex()
+			r.setCommitIndex(newCommitIndex)
 
-			r.matched[elem.who] = elem.index
-			var matches []uint64
-			for _, v := range r.matched {
-				matches = append(matches, v)
-			}
-			sort.Slice(matches, func(i, j int) bool {
-				return matches[i] < matches[j]
-			})
-			index := matches[(len(matches)-1)/2]
+			if newCommitIndex > lastCommitIndex {
+				// todo 日志落地
 
-			if index > r.getCommitIndex() {
-				r.setCommitIndex(index)
-			}
-
-		case <-time.After(r.heartbeatTimeout() / 5):
-			for _, hb := range hbs {
-				r.notifyChan(hb)
 			}
 
 		case jlog := <-r.logModify:
 			r.appendLog(jlog)
-			for _, nty := range notifies {
-				r.notifyChan(nty)
+			for _, v := range fetchList {
+				notifyChan(v)
 			}
-
-		case <-usurper:
-			return
 		}
 	}
 }
