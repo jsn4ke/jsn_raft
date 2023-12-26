@@ -5,6 +5,10 @@ import "time"
 func (r *RaftNew) runFollower() {
 
 	timeout := time.After(randomTimeout(r.heartbeatTimeout()))
+	if r.firstFollower {
+		timeout = time.After(0)
+		r.firstFollower = false
+	}
 
 	for r.getServerState() == follower {
 		select {

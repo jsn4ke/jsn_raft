@@ -8,6 +8,8 @@ import (
 )
 
 type RaftNew struct {
+	firstFollower bool
+
 	who string
 
 	currentTerm uint64
@@ -33,6 +35,9 @@ type RaftNew struct {
 
 func NewRaftNew(who string, config ServerConfig) *RaftNew {
 	r := new(RaftNew)
+
+	r.firstFollower = true
+
 	r.who = who
 	r.config = config
 	r.logger = new(defaultLogger)

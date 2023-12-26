@@ -135,8 +135,7 @@ func (r *RaftNew) vote(args *VoteRequest, reply *VoteResponse) error {
 		reply.CurrentTerm = r.getCurrentTerm()
 	}
 
-	if 0 != len(r.voteFor) && r.voteFor == string(args.CandidateId) {
-		reply.VoteGranted = true
+	if 0 != len(r.voteFor) && r.voteFor != string(args.CandidateId) {
 		return nil
 	}
 
