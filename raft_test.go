@@ -14,7 +14,7 @@ var serverConfig []byte
 type testLog struct {
 	term  uint64
 	index uint64
-	key   uint64
+	tm    int64
 }
 
 func (t *testLog) SetTerm(term uint64) {
@@ -57,7 +57,7 @@ func TestNewRaftNew(t *testing.T) {
 					v.logModify <- &testLog{
 						term:  0,
 						index: 0,
-						key:   uint64(time.Now().Unix()),
+						tm:    time.Now().Unix(),
 					}
 				}
 			}
