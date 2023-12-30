@@ -42,7 +42,7 @@ func (r *replication) heartbeat() {
 		Heartbeat:    true,
 	}
 	resp := new(AppendEntriesResponse)
-	err := r.raft.rpcCallWithDone(r.who, AppendEntries, req, resp, r.done)
+	err := r.raft.rpcClients[r.who].Call(req, resp, r.done, r.raft.rpcTimeout())
 	if nil != err {
 		r.raft.logger.Error("[%v] heartbeat to %v error %v",
 			r.raft.who, r.who, err.Error())
@@ -87,7 +87,7 @@ func (r *replication) replicateTo() {
 	req.Entries = r.raft.logEntries(nextIndex, lastLogIndex)
 
 	resp := new(AppendEntriesResponse)
-	err := r.raft.rpcCallWithDone(r.who, AppendEntries, req, resp, r.done)
+	err := r.raft.rpcClients[r.who].Call(req, resp, r.done, r.raft.rpcTimeout())
 	if nil != err {
 		notifyChan(r.retry)
 		return

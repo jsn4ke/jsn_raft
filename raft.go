@@ -1,10 +1,10 @@
 package jsn_raft
 
 import (
-	"net"
-	"net/rpc"
 	"sync"
 	"sync/atomic"
+
+	jsn_rpc "github.com/jsn4ke/jsn_net/rpc"
 )
 
 type RaftNew struct {
@@ -31,6 +31,10 @@ type RaftNew struct {
 
 	rpcChannel chan *rpcWrap
 
+	// rpc
+	rpcServer  *jsn_rpc.Server
+	rpcClients map[string]*jsn_rpc.Client
+
 	// debug
 	logModify      chan *JsnLog
 	leaderTransfer chan struct{}
@@ -50,17 +54,21 @@ func NewRaftNew(who string, config ServerConfig) *RaftNew {
 	r.logModify = make(chan *JsnLog, 256)
 	r.leaderTransfer = make(chan struct{})
 	//////////////
-	svr := rpc.NewServer()
-	if err := svr.RegisterName("RaftNew", r); nil != err {
-		panic(err)
+	//// rpc //////
+
+	r.rpcServer = jsn_rpc.NewServer(r.who, 128, 4)
+	r.registerRpc()
+	r.rpcServer.Start()
+	r.rpcClients = make(map[string]*jsn_rpc.Client)
+	for _, v := range config.List {
+		if r.who == v.Who {
+			continue
+		}
+		cli := jsn_rpc.NewClient(v.Who, 128, 4)
+		r.rpcClients[v.Who] = cli
 	}
-	if ls, err := net.Listen("tcp", who); nil != err {
-		panic(err)
-	} else {
-		r.safeGo("accept", func() {
-			svr.Accept(ls)
-		})
-	}
+
+	//////////
 	r.safeGo("fsm", r.fsm)
 	return r
 }

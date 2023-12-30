@@ -28,7 +28,7 @@ func (r *RaftNew) runCandidate() {
 		} else {
 			r.safeGo("peer vote request", func() {
 				resp := &VoteResponse{}
-				err := r.rpcCall(who, Vote, req, resp)
+				err := r.rpcClients[who].Call(req, resp, nil, r.rpcTimeout())
 				if nil != err {
 					r.logger.Error("`[%v] vote to %v err %v",
 						r.who, who, err.Error())

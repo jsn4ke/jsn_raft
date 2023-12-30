@@ -1,16 +1,23 @@
 package jsn_raft
 
 import (
+	"encoding/json"
 	"errors"
-	"net"
-	"net/rpc"
 	"sync"
-	"time"
+
+	jsn_rpc "github.com/jsn4ke/jsn_net/rpc"
 )
 
 const (
 	AppendEntries = "RaftNew.AppendEntries"
 	Vote          = "RaftNew.Vote"
+)
+
+var (
+	_ jsn_rpc.RpcUnit = (*VoteRequest)(nil)
+	_ jsn_rpc.RpcUnit = (*VoteResponse)(nil)
+	_ jsn_rpc.RpcUnit = (*AppendEntriesRequest)(nil)
+	_ jsn_rpc.RpcUnit = (*AppendEntriesResponse)(nil)
 )
 
 // term uint64, candidateId []byte, lastLogIndex uint64, lastLogTerm uint64
@@ -20,25 +27,131 @@ type VoteRequest struct {
 	LastLogIndex uint64 `json:"last_log_index,omitempty"`
 	LastLogTerm  uint64 `json:"last_log_term,omitempty"`
 }
+
+// CmdId implements jsn_rpc.RpcUnit.
+func (*VoteRequest) CmdId() uint32 {
+	return 1
+}
+
+// Marshal implements jsn_rpc.RpcUnit.
+func (r *VoteRequest) Marshal() ([]byte, error) {
+	return json.Marshal(r)
+}
+
+// New implements jsn_rpc.RpcUnit.
+func (*VoteRequest) New() jsn_rpc.RpcUnit {
+	return new(VoteRequest)
+}
+
+// Unmarshal implements jsn_rpc.RpcUnit.
+func (r *VoteRequest) Unmarshal(in []byte) error {
+	return json.Unmarshal(in, r)
+}
+
 type VoteResponse struct {
 	CurrentTerm uint64 `json:"current_term,omitempty"`
 	VoteGranted bool   `json:"vote_granted,omitempty"`
 }
 
+// CmdId implements jsn_rpc.RpcUnit.
+func (*VoteResponse) CmdId() uint32 {
+	return 2
+}
+
+// Marshal implements jsn_rpc.RpcUnit.
+func (r *VoteResponse) Marshal() ([]byte, error) {
+	return json.Marshal(r)
+}
+
+// New implements jsn_rpc.RpcUnit.
+func (*VoteResponse) New() jsn_rpc.RpcUnit {
+	return new(VoteResponse)
+}
+
+// Unmarshal implements jsn_rpc.RpcUnit.
+func (r *VoteResponse) Unmarshal(in []byte) error {
+	return json.Unmarshal(in, r)
+}
+
 // term uint64, leaderId []byte, prevLogIndex uint64, prevLogTerm uint64, entries []*jsnLog, leaderCommit uint64
 type AppendEntriesRequest struct {
-	Term         uint64
-	LeaderId     []byte
-	PrevLogIndex uint64
-	PrevLogTerm  uint64
-	Entries      []*JsnLog
-	LeaderCommit uint64
-	Heartbeat    bool
+	Term         uint64    `json:"term,omitempty"`
+	LeaderId     []byte    `json:"leader_id,omitempty"`
+	PrevLogIndex uint64    `json:"prev_log_index,omitempty"`
+	PrevLogTerm  uint64    `json:"prev_log_term,omitempty"`
+	Entries      []*JsnLog `json:"entries,omitempty"`
+	LeaderCommit uint64    `json:"leader_commit,omitempty"`
+	Heartbeat    bool      `json:"heartbeat,omitempty"`
+}
+
+// CmdId implements jsn_rpc.RpcUnit.
+func (*AppendEntriesRequest) CmdId() uint32 {
+	return 3
+}
+
+// Marshal implements jsn_rpc.RpcUnit.
+func (r *AppendEntriesRequest) Marshal() ([]byte, error) {
+	return json.Marshal(r)
+}
+
+// New implements jsn_rpc.RpcUnit.
+func (*AppendEntriesRequest) New() jsn_rpc.RpcUnit {
+	return new(AppendEntriesRequest)
+}
+
+// Unmarshal implements jsn_rpc.RpcUnit.
+func (r *AppendEntriesRequest) Unmarshal(in []byte) error {
+	return json.Unmarshal(in, r)
 }
 
 type AppendEntriesResponse struct {
-	CurrentTerm uint64
-	Success     bool
+	CurrentTerm uint64 `json:"current_term,omitempty"`
+	Success     bool   `json:"success,omitempty"`
+}
+
+// CmdId implements jsn_rpc.RpcUnit.
+func (*AppendEntriesResponse) CmdId() uint32 {
+	return 4
+}
+
+// Marshal implements jsn_rpc.RpcUnit.
+func (r *AppendEntriesResponse) Marshal() ([]byte, error) {
+	return json.Marshal(r)
+}
+
+// New implements jsn_rpc.RpcUnit.
+func (*AppendEntriesResponse) New() jsn_rpc.RpcUnit {
+	return new(AppendEntriesResponse)
+}
+
+// Unmarshal implements jsn_rpc.RpcUnit.
+func (r *AppendEntriesResponse) Unmarshal(in []byte) error {
+	return json.Unmarshal(in, r)
+}
+
+func (r *RaftNew) registerRpc() {
+	r.rpcServer.RegisterExecutor(new(VoteRequest), r.rpcVote)
+	r.rpcServer.RegisterExecutor(new(AppendEntriesRequest), r.rpcAppendEntries)
+}
+
+func (r *RaftNew) rpcVote(in jsn_rpc.RpcUnit) (jsn_rpc.RpcUnit, error) {
+	args, _ := in.(*VoteRequest)
+	if nil == args {
+		return nil, errors.New("invalid request")
+	}
+	reply := new(VoteResponse)
+	err := r.Vote(args, reply)
+	return reply, err
+}
+
+func (r *RaftNew) rpcAppendEntries(in jsn_rpc.RpcUnit) (jsn_rpc.RpcUnit, error) {
+	args, _ := in.(*AppendEntriesRequest)
+	if nil == args {
+		return nil, errors.New("invalid request")
+	}
+	reply := new(AppendEntriesResponse)
+	err := r.AppendEntries(args, reply)
+	return reply, err
 }
 
 func (r *RaftNew) Vote(args *VoteRequest, reply *VoteResponse) error {
@@ -84,54 +197,54 @@ var (
 	clis = sync.Map{}
 )
 
-func (r *RaftNew) rpcCall(who string, service string, in, out any) error {
-	value, ok := clis.Load(who)
-	if !ok {
-		dial, err := net.Dial("tcp", who)
-		if nil != err {
-			r.logger.Error("[%v] get handlerRpc error from %v err %v",
-				r.who, who, err)
-			return err
-		}
-		cli := rpc.NewClient(dial)
-		clis.Store(who, cli)
-		value, _ = clis.Load(who)
-	}
-	cli, _ := value.(*rpc.Client)
-	if nil == cli {
-		r.logger.Error("[%v] get rpc client error",
-			r.who)
-		return errors.New("get rpc client error")
-	}
-	select {
-	case <-time.After(r.rpcTimeout()):
-		return errors.New("handlerRpc timeout")
-	case call := <-cli.Go(service, in, out, nil).Done:
-		return call.Error
-	}
-}
+// func (r *RaftNew) rpcCall(who string, service string, in, out any) error {
+// 	value, ok := clis.Load(who)
+// 	if !ok {
+// 		dial, err := net.Dial("tcp", who)
+// 		if nil != err {
+// 			r.logger.Error("[%v] get handlerRpc error from %v err %v",
+// 				r.who, who, err)
+// 			return err
+// 		}
+// 		cli := rpc.NewClient(dial)
+// 		clis.Store(who, cli)
+// 		value, _ = clis.Load(who)
+// 	}
+// 	cli, _ := value.(*rpc.Client)
+// 	if nil == cli {
+// 		r.logger.Error("[%v] get rpc client error",
+// 			r.who)
+// 		return errors.New("get rpc client error")
+// 	}
+// 	select {
+// 	case <-time.After(r.rpcTimeout()):
+// 		return errors.New("handlerRpc timeout")
+// 	case call := <-cli.Go(service, in, out, nil).Done:
+// 		return call.Error
+// 	}
+// }
 
-func (r *RaftNew) rpcCallWithDone(who string, service string, in, out any, done <-chan struct{}) error {
-	dial, err := net.Dial("tcp", who)
-	if nil != err {
-		r.logger.Error("[%v] get handlerRpc error from %v err %v",
-			r.who, who, err)
-		return nil
-	}
-	cli := rpc.NewClient(dial)
-	if nil == cli {
-		return errors.New("handlerRpc connect fail")
-	}
-	defer cli.Close()
-	select {
-	case <-done:
-		return errors.New("out done")
-	case <-time.After(r.rpcTimeout()):
-		return errors.New("handlerRpc timeout")
-	case call := <-cli.Go(service, in, out, nil).Done:
-		return call.Error
-	}
-}
+// func (r *RaftNew) rpcCallWithDone(who string, service string, in, out any, done <-chan struct{}) error {
+// 	dial, err := net.Dial("tcp", who)
+// 	if nil != err {
+// 		r.logger.Error("[%v] get handlerRpc error from %v err %v",
+// 			r.who, who, err)
+// 		return nil
+// 	}
+// 	cli := rpc.NewClient(dial)
+// 	if nil == cli {
+// 		return errors.New("handlerRpc connect fail")
+// 	}
+// 	defer cli.Close()
+// 	select {
+// 	case <-done:
+// 		return errors.New("out done")
+// 	case <-time.After(r.rpcTimeout()):
+// 		return errors.New("handlerRpc timeout")
+// 	case call := <-cli.Go(service, in, out, nil).Done:
+// 		return call.Error
+// 	}
+// }
 
 func (r *RaftNew) vote(args *VoteRequest, reply *VoteResponse) error {
 	reply.CurrentTerm = r.getCurrentTerm()
