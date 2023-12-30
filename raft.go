@@ -38,6 +38,7 @@ type RaftNew struct {
 	// debug
 	logModify      chan *JsnLog
 	leaderTransfer chan struct{}
+	outputLog      chan int64
 }
 
 func NewRaftNew(who string, config ServerConfig) *RaftNew {
@@ -53,9 +54,10 @@ func NewRaftNew(who string, config ServerConfig) *RaftNew {
 	// debug//////
 	r.logModify = make(chan *JsnLog, 256)
 	r.leaderTransfer = make(chan struct{})
+	r.outputLog = make(chan int64, 1)
 	//////////////
-	//// rpc //////
 
+	//// rpc //////
 	r.rpcServer = jsn_rpc.NewServer(r.who, 128, 4)
 	r.registerRpc()
 	r.rpcServer.Start()
@@ -67,6 +69,7 @@ func NewRaftNew(who string, config ServerConfig) *RaftNew {
 		cli := jsn_rpc.NewClient(v.Who, 128, 4)
 		r.rpcClients[v.Who] = cli
 	}
+	///////////////
 
 	//////////
 	r.safeGo("fsm", r.fsm)

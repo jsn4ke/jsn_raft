@@ -29,23 +29,35 @@ func TestNewRaftNew(t *testing.T) {
 		r := NewRaftNew(v.Who, *config)
 		rs = append(rs, r)
 	}
-	tk := time.NewTicker(time.Second)
+	tk1 := time.NewTicker(time.Second)
+	tk2 := time.NewTicker(time.Millisecond * 600)
 	transfer := time.NewTimer(randomTimeout(time.Second * 10))
+	go func() {
+		for in := range logcheck {
+			fmt.Println(in)
+		}
+	}()
+	var idx int64
 	for {
 		select {
 		case <-transfer.C:
-			for _, v := range rs {
-				if v.getServerState() == leader {
-					fmt.Println("trigger leader to follower")
-					select {
-					case v.leaderTransfer <- struct{}{}:
-					default:
-					}
+			// for _, v := range rs {
+			// 	if v.getServerState() == leader {
+			// 		fmt.Println("trigger leader to follower")
+			// 		select {
+			// 		case v.leaderTransfer <- struct{}{}:
+			// 		default:
+			// 		}
 
-				}
-			}
+			// 	}
+			// }
 			transfer.Reset(randomTimeout(time.Second * 10))
-		case <-tk.C:
+		case <-tk1.C:
+			idx++
+			// for _, v := range rs {
+			// 	v.outputLog <- idx
+			// }
+		case <-tk2.C:
 			for _, v := range rs {
 				if v.getServerState() == leader {
 					v.logModify <- &JsnLog{

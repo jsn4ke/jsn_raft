@@ -78,6 +78,13 @@ func (r *RaftNew) runLeader() {
 	// 开始leader的逻辑
 	for leader == r.getServerState() {
 		select {
+		case idx := <-r.outputLog:
+			s := fmt.Sprintf("CheckLog[%v] %v logs:", idx, r.who)
+			for _, v := range r.logs {
+				s += fmt.Sprintf("%v-%v-%s|", v.Index(), v.Term(), v.JData)
+			}
+			logcheck <- s
+
 		case term := <-usurper:
 			if term > r.getCurrentTerm() {
 				r.setServerState(follower)

@@ -125,7 +125,7 @@ func (r *replication) run() {
 			return
 		case <-tk.C:
 			r.heartbeat()
-			tk.Reset(randomTimeout(r.raft.heartbeatTimeout() / 5))
+			tk.Reset(randomTimeout(r.raft.heartbeatTimeout() / 3))
 		case <-r.fetch:
 			r.replicateTo()
 		case <-r.retry:

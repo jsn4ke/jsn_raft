@@ -1,6 +1,9 @@
 package jsn_raft
 
-import "time"
+import (
+	"fmt"
+	"time"
+)
 
 func (r *RaftNew) runCandidate() {
 	r.logger.Info("[%v] in candidate",
@@ -42,6 +45,12 @@ func (r *RaftNew) runCandidate() {
 
 	for r.getServerState() == candidate {
 		select {
+		case idx := <-r.outputLog:
+			s := fmt.Sprintf("CheckLog[%v] %v logs:", idx, r.who)
+			for _, v := range r.logs {
+				s += fmt.Sprintf("%v-%v-%s|", v.Index(), v.Term(), v.JData)
+			}
+			logcheck <- s
 		case wrap := <-r.rpcChannel:
 			r.handlerRpc(wrap)
 		case resp := <-voteResponseChannel:

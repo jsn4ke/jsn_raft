@@ -1,6 +1,9 @@
 package jsn_raft
 
-import "time"
+import (
+	"fmt"
+	"time"
+)
 
 func (r *RaftNew) runFollower() {
 
@@ -15,6 +18,12 @@ func (r *RaftNew) runFollower() {
 
 	for r.getServerState() == follower {
 		select {
+		case idx := <-r.outputLog:
+			s := fmt.Sprintf("CheckLog[%v] %v logs:", idx, r.who)
+			for _, v := range r.logs {
+				s += fmt.Sprintf("%v-%v-%s|", v.Index(), v.Term(), v.JData)
+			}
+			logcheck <- s
 		case wrap := <-r.rpcChannel:
 			r.handlerRpc(wrap)
 			timeout.Reset(randomTimeout(r.heartbeatTimeout()))

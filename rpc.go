@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"errors"
 	"sync"
+	"time"
 
 	jsn_rpc "github.com/jsn4ke/jsn_net/rpc"
 )
@@ -135,10 +136,20 @@ func (r *RaftNew) registerRpc() {
 }
 
 func (r *RaftNew) rpcVote(in jsn_rpc.RpcUnit) (jsn_rpc.RpcUnit, error) {
+
 	args, _ := in.(*VoteRequest)
 	if nil == args {
 		return nil, errors.New("invalid request")
 	}
+	now := time.Now()
+	defer func() {
+		diff := time.Since(now)
+		if diff*5 > r.rpcTimeout() {
+			r.logger.Info("[%v] rpcVote from %s  cost %v",
+				r.who, args.CandidateId, diff)
+		}
+
+	}()
 	reply := new(VoteResponse)
 	err := r.Vote(args, reply)
 	return reply, err
@@ -149,6 +160,15 @@ func (r *RaftNew) rpcAppendEntries(in jsn_rpc.RpcUnit) (jsn_rpc.RpcUnit, error) 
 	if nil == args {
 		return nil, errors.New("invalid request")
 	}
+	now := time.Now()
+	defer func() {
+		diff := time.Since(now)
+		if diff*5 > r.rpcTimeout() {
+			r.logger.Info("[%v] rpcAppendEntries from %s  cost %v",
+				r.who, args.LeaderId, diff)
+		}
+
+	}()
 	reply := new(AppendEntriesResponse)
 	err := r.AppendEntries(args, reply)
 	return reply, err
@@ -307,6 +327,9 @@ func (r *RaftNew) appendEntries(args *AppendEntriesRequest, reply *AppendEntries
 		r.setCurrentTerm(args.Term)
 
 		reply.CurrentTerm = r.getCurrentTerm()
+	}
+	if candidate == r.getServerState() {
+		r.setServerState(follower)
 	}
 
 	if args.Heartbeat {
