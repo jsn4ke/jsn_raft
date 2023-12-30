@@ -3,10 +3,12 @@ package jsn_raft
 import (
 	"fmt"
 	"time"
+
+	"github.com/jsn4ke/jsn_net"
 )
 
 func (r *RaftNew) runCandidate() {
-	r.logger.Info("[%v] in candidate",
+	r.logger.Info("[%v] run candidate",
 		r.who)
 	r.addCurrentTerm()
 
@@ -31,7 +33,8 @@ func (r *RaftNew) runCandidate() {
 		} else {
 			r.safeGo("peer vote request", func() {
 				resp := &VoteResponse{}
-				err := r.rpcClients[who].Call(req, resp, nil, r.rpcTimeout())
+				// err := r.rpcClients[who].Call(req, resp, nil, r.rpcTimeout())
+				err := r.rpcCall(who, req, resp, nil, r.rpcTimeout())
 				if nil != err {
 					r.logger.Error("`[%v] vote to %v err %v",
 						r.who, who, err.Error())
@@ -46,11 +49,15 @@ func (r *RaftNew) runCandidate() {
 	for r.getServerState() == candidate {
 		select {
 		case idx := <-r.outputLog:
-			s := fmt.Sprintf("CheckLog[%v] %v logs:", idx, r.who)
-			for _, v := range r.logs {
+			s := fmt.Sprintf("CheckLog[%v] logs:", idx)
+			var st = jsn_net.Clip(len(r.logs)-20, 0, len(r.logs))
+			for _, v := range r.logs[st:] {
 				s += fmt.Sprintf("%v-%v-%s|", v.Index(), v.Term(), v.JData)
 			}
-			logcheck <- s
+			logcheck <- struct {
+				idx  int32
+				body string
+			}{int32(idx), s}
 		case wrap := <-r.rpcChannel:
 			r.handlerRpc(wrap)
 		case resp := <-voteResponseChannel:

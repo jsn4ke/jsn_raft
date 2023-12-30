@@ -3,10 +3,12 @@ package jsn_raft
 import (
 	"fmt"
 	"sync"
+
+	"github.com/jsn4ke/jsn_net"
 )
 
 func (r *RaftNew) runLeader() {
-	r.logger.Info("[%v] in leader",
+	r.logger.Info("[%v] run leader",
 		r.who)
 
 	var (
@@ -79,11 +81,15 @@ func (r *RaftNew) runLeader() {
 	for leader == r.getServerState() {
 		select {
 		case idx := <-r.outputLog:
-			s := fmt.Sprintf("CheckLog[%v] %v logs:", idx, r.who)
-			for _, v := range r.logs {
+			s := fmt.Sprintf("CheckLog[%v] logs:", idx)
+			var st = jsn_net.Clip(len(r.logs)-20, 0, len(r.logs))
+			for _, v := range r.logs[st:] {
 				s += fmt.Sprintf("%v-%v-%s|", v.Index(), v.Term(), v.JData)
 			}
-			logcheck <- s
+			logcheck <- struct {
+				idx  int32
+				body string
+			}{int32(idx), s}
 
 		case term := <-usurper:
 			if term > r.getCurrentTerm() {

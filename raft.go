@@ -72,8 +72,11 @@ func NewRaftNew(who string, config ServerConfig) *RaftNew {
 	///////////////
 
 	//////////
-	r.safeGo("fsm", r.fsm)
 	return r
+}
+
+func (r *RaftNew) Go() {
+	r.safeGo("fsm", r.fsm)
 }
 
 func (r *RaftNew) fsm() {
@@ -94,9 +97,9 @@ func (r *RaftNew) safeGo(name string, f func()) {
 	r.goroutineWaitGroup.Add(1)
 	go func() {
 		defer func() {
-			if err := recover(); nil != err {
-				r.logger.Error("safe go panic %v recover %v", name, err)
-			}
+			// if err := recover(); nil != err {
+			// 	r.logger.Error("safe go panic %v recover %v", name, err)
+			// }
 			r.goroutineWaitGroup.Done()
 		}()
 		f()

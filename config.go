@@ -18,7 +18,7 @@ func (r *RaftNew) electionTimeout() time.Duration {
 }
 
 func (r *RaftNew) rpcTimeout() time.Duration {
-	return time.Millisecond * 50
+	return time.Millisecond * 20
 }
 
 func (r *RaftNew) orphanTimeout() time.Duration {

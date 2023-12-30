@@ -217,54 +217,11 @@ var (
 	clis = sync.Map{}
 )
 
-// func (r *RaftNew) rpcCall(who string, service string, in, out any) error {
-// 	value, ok := clis.Load(who)
-// 	if !ok {
-// 		dial, err := net.Dial("tcp", who)
-// 		if nil != err {
-// 			r.logger.Error("[%v] get handlerRpc error from %v err %v",
-// 				r.who, who, err)
-// 			return err
-// 		}
-// 		cli := rpc.NewClient(dial)
-// 		clis.Store(who, cli)
-// 		value, _ = clis.Load(who)
-// 	}
-// 	cli, _ := value.(*rpc.Client)
-// 	if nil == cli {
-// 		r.logger.Error("[%v] get rpc client error",
-// 			r.who)
-// 		return errors.New("get rpc client error")
-// 	}
-// 	select {
-// 	case <-time.After(r.rpcTimeout()):
-// 		return errors.New("handlerRpc timeout")
-// 	case call := <-cli.Go(service, in, out, nil).Done:
-// 		return call.Error
-// 	}
-// }
-
-// func (r *RaftNew) rpcCallWithDone(who string, service string, in, out any, done <-chan struct{}) error {
-// 	dial, err := net.Dial("tcp", who)
-// 	if nil != err {
-// 		r.logger.Error("[%v] get handlerRpc error from %v err %v",
-// 			r.who, who, err)
-// 		return nil
-// 	}
-// 	cli := rpc.NewClient(dial)
-// 	if nil == cli {
-// 		return errors.New("handlerRpc connect fail")
-// 	}
-// 	defer cli.Close()
-// 	select {
-// 	case <-done:
-// 		return errors.New("out done")
-// 	case <-time.After(r.rpcTimeout()):
-// 		return errors.New("handlerRpc timeout")
-// 	case call := <-cli.Go(service, in, out, nil).Done:
-// 		return call.Error
-// 	}
-// }
+func (r *RaftNew) rpcCall(who string, args jsn_rpc.RpcUnit, reply jsn_rpc.RpcUnit, done <-chan struct{}, timeout time.Duration) error {
+	err := r.rpcClients[who].Call(args, reply, done, timeout)
+	// err := rpcCall(who, args, reply, done, timeout)
+	return err
+}
 
 func (r *RaftNew) vote(args *VoteRequest, reply *VoteResponse) error {
 	reply.CurrentTerm = r.getCurrentTerm()

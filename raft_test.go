@@ -28,35 +28,56 @@ func TestNewRaftNew(t *testing.T) {
 	for _, v := range config.List {
 		r := NewRaftNew(v.Who, *config)
 		rs = append(rs, r)
+
+		rafts[v.Who] = r
+	}
+	for _, v := range rs {
+		v.Go()
 	}
 	tk1 := time.NewTicker(time.Second)
-	tk2 := time.NewTicker(time.Millisecond * 600)
-	transfer := time.NewTimer(randomTimeout(time.Second * 10))
+	tk2 := time.NewTicker(time.Second / 1000)
+	transfer := time.NewTimer(randomTimeout(time.Second * 4))
+	var (
+		idx  int64
+		same = map[int32]string{}
+	)
 	go func() {
 		for in := range logcheck {
-			fmt.Println(in)
+			if s, ok := same[in.idx]; ok {
+				if s == in.body {
+					continue
+				} else if s == "output" {
+					fmt.Println(in.body)
+				} else {
+					fmt.Println(s)
+					fmt.Println(in.body)
+					same[in.idx] = "output"
+				}
+			} else {
+				same[in.idx] = in.body
+			}
 		}
 	}()
-	var idx int64
+
 	for {
 		select {
 		case <-transfer.C:
-			// for _, v := range rs {
-			// 	if v.getServerState() == leader {
-			// 		fmt.Println("trigger leader to follower")
-			// 		select {
-			// 		case v.leaderTransfer <- struct{}{}:
-			// 		default:
-			// 		}
+			for _, v := range rs {
+				if v.getServerState() == leader {
+					fmt.Println("trigger leader to follower")
+					select {
+					case v.leaderTransfer <- struct{}{}:
+					default:
+					}
 
-			// 	}
-			// }
+				}
+			}
 			transfer.Reset(randomTimeout(time.Second * 10))
 		case <-tk1.C:
 			idx++
-			// for _, v := range rs {
-			// 	v.outputLog <- idx
-			// }
+			for _, v := range rs {
+				v.outputLog <- idx
+			}
 		case <-tk2.C:
 			for _, v := range rs {
 				if v.getServerState() == leader {
