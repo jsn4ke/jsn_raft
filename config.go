@@ -9,12 +9,14 @@ type ServerConfig struct {
 	} `yaml:"list"`
 }
 
+// 广播时间（broadcastTime） << 选举超时时间（electionTimeout） << 平均故障间隔时间（MTBF）
+
 func (r *RaftNew) heartbeatTimeout() time.Duration {
-	return time.Millisecond * 1000
+	return time.Millisecond * 500
 }
 
 func (r *RaftNew) electionTimeout() time.Duration {
-	return time.Millisecond * 1000
+	return time.Millisecond * 150
 }
 
 func (r *RaftNew) rpcTimeout() time.Duration {

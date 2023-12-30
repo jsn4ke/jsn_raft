@@ -35,8 +35,8 @@ func TestNewRaftNew(t *testing.T) {
 		v.Go()
 	}
 	tk1 := time.NewTicker(time.Second)
-	tk2 := time.NewTicker(time.Second / 1000)
-	transfer := time.NewTimer(randomTimeout(time.Second * 4))
+	tk2 := time.NewTicker(time.Second)
+	transfer := time.NewTicker(randomTimeout(time.Millisecond * 300))
 	var (
 		idx  int64
 		same = map[int32]string{}
@@ -72,7 +72,6 @@ func TestNewRaftNew(t *testing.T) {
 
 				}
 			}
-			transfer.Reset(randomTimeout(time.Second * 10))
 		case <-tk1.C:
 			idx++
 			for _, v := range rs {

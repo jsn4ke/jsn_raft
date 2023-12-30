@@ -237,6 +237,7 @@ func (r *RaftNew) vote(args *VoteRequest, reply *VoteResponse) error {
 		reply.CurrentTerm = r.getCurrentTerm()
 	}
 
+	// 一个服务器最多会对一个任期号投出一张选票，按照先来先服务的原则
 	if r.voteForTerm == args.Term {
 		if 0 != len(r.voteFor) && r.voteFor != string(args.CandidateId) {
 			return nil
@@ -285,6 +286,8 @@ func (r *RaftNew) appendEntries(args *AppendEntriesRequest, reply *AppendEntries
 
 		reply.CurrentTerm = r.getCurrentTerm()
 	}
+
+	// 如果这个领导人的任期号（包含在此次的 RPC中）不小于候选人当前的任期号，那么候选人会承认领导人合法并回到跟随者状态
 	if candidate == r.getServerState() {
 		r.setServerState(follower)
 	}
@@ -314,6 +317,7 @@ func (r *RaftNew) appendEntries(args *AppendEntriesRequest, reply *AppendEntries
 		if jlog.Term() != entry.Term() {
 			r.logDeleteFrom(entry.Index())
 			entries = args.Entries[i:]
+			break
 		}
 	}
 
