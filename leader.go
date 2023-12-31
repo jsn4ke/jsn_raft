@@ -4,10 +4,10 @@ import (
 	"fmt"
 	"sync"
 
-	"github.com/jsn4ke/jsn_net"
+	"github.com/jsn4ke/jsn_raft/v2/pb"
 )
 
-func (r *RaftNew) runLeader() {
+func (r *Raft) runLeader() {
 	r.logger.Info("[%v] run leader",
 		r.who)
 
@@ -29,8 +29,8 @@ func (r *RaftNew) runLeader() {
 		rw:               sync.RWMutex{},
 		notify:           commitmentNotify,
 		who:              make(map[string]int),
-		nextIndex:        []uint64{},
-		matchIndex:       []uint64{},
+		nextIndex:        []int64{},
+		matchIndex:       []int64{},
 		commitIndex:      0,
 		leaderStartIndex: lastLogIndex,
 	}
@@ -42,8 +42,8 @@ func (r *RaftNew) runLeader() {
 		commitment.matchIndex = append(commitment.matchIndex, 0)
 	}
 	// 提交leader的首条日志
-	r.appendLog(&JsnLog{
-		JData: []byte(fmt.Sprintf("leader commit log term %v", r.getCurrentTerm())),
+	r.appendLog(&pb.JsnLog{
+		Cmd: []byte(fmt.Sprintf("leader commit log term %v", r.getCurrentTerm())),
 	})
 
 	lastLogIndex = r.lastLogIndex()
@@ -80,16 +80,6 @@ func (r *RaftNew) runLeader() {
 	// 开始leader的逻辑
 	for leader == r.getServerState() {
 		select {
-		case idx := <-r.outputLog:
-			s := fmt.Sprintf("CheckLog[%v] logs:", idx)
-			var st = jsn_net.Clip(len(r.logs)-20, 0, len(r.logs))
-			for _, v := range r.logs[st:] {
-				s += fmt.Sprintf("%v-%v-%s|", v.Index(), v.Term(), v.JData)
-			}
-			logcheck <- struct {
-				idx  int32
-				body string
-			}{int32(idx), s}
 
 		case term := <-usurper:
 			if term > r.getCurrentTerm() {

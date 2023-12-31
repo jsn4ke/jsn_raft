@@ -1,12 +1,12 @@
 package jsn_raft
 
 import (
-	"encoding/json"
 	"errors"
 	"sync"
 	"time"
 
 	jsn_rpc "github.com/jsn4ke/jsn_net/rpc"
+	"github.com/jsn4ke/jsn_raft/v2/pb"
 )
 
 const (
@@ -14,130 +14,14 @@ const (
 	Vote          = "RaftNew.Vote"
 )
 
-var (
-	_ jsn_rpc.RpcUnit = (*VoteRequest)(nil)
-	_ jsn_rpc.RpcUnit = (*VoteResponse)(nil)
-	_ jsn_rpc.RpcUnit = (*AppendEntriesRequest)(nil)
-	_ jsn_rpc.RpcUnit = (*AppendEntriesResponse)(nil)
-)
-
-// term uint64, candidateId []byte, lastLogIndex uint64, lastLogTerm uint64
-type VoteRequest struct {
-	Term         uint64 `json:"term,omitempty"`
-	CandidateId  []byte `json:"candidate_id,omitempty"`
-	LastLogIndex uint64 `json:"last_log_index,omitempty"`
-	LastLogTerm  uint64 `json:"last_log_term,omitempty"`
+func (r *Raft) registerRpc() {
+	r.rpcServer.RegisterExecutor(new(pb.VoteRequest), r.rpcVote)
+	r.rpcServer.RegisterExecutor(new(pb.AppendEntriesRequest), r.rpcAppendEntries)
 }
 
-// CmdId implements jsn_rpc.RpcUnit.
-func (*VoteRequest) CmdId() uint32 {
-	return 1
-}
+func (r *Raft) rpcVote(in jsn_rpc.RpcUnit) (jsn_rpc.RpcUnit, error) {
 
-// Marshal implements jsn_rpc.RpcUnit.
-func (r *VoteRequest) Marshal() ([]byte, error) {
-	return json.Marshal(r)
-}
-
-// New implements jsn_rpc.RpcUnit.
-func (*VoteRequest) New() jsn_rpc.RpcUnit {
-	return new(VoteRequest)
-}
-
-// Unmarshal implements jsn_rpc.RpcUnit.
-func (r *VoteRequest) Unmarshal(in []byte) error {
-	return json.Unmarshal(in, r)
-}
-
-type VoteResponse struct {
-	CurrentTerm uint64 `json:"current_term,omitempty"`
-	VoteGranted bool   `json:"vote_granted,omitempty"`
-}
-
-// CmdId implements jsn_rpc.RpcUnit.
-func (*VoteResponse) CmdId() uint32 {
-	return 2
-}
-
-// Marshal implements jsn_rpc.RpcUnit.
-func (r *VoteResponse) Marshal() ([]byte, error) {
-	return json.Marshal(r)
-}
-
-// New implements jsn_rpc.RpcUnit.
-func (*VoteResponse) New() jsn_rpc.RpcUnit {
-	return new(VoteResponse)
-}
-
-// Unmarshal implements jsn_rpc.RpcUnit.
-func (r *VoteResponse) Unmarshal(in []byte) error {
-	return json.Unmarshal(in, r)
-}
-
-// term uint64, leaderId []byte, prevLogIndex uint64, prevLogTerm uint64, entries []*jsnLog, leaderCommit uint64
-type AppendEntriesRequest struct {
-	Term         uint64    `json:"term,omitempty"`
-	LeaderId     []byte    `json:"leader_id,omitempty"`
-	PrevLogIndex uint64    `json:"prev_log_index,omitempty"`
-	PrevLogTerm  uint64    `json:"prev_log_term,omitempty"`
-	Entries      []*JsnLog `json:"entries,omitempty"`
-	LeaderCommit uint64    `json:"leader_commit,omitempty"`
-	Heartbeat    bool      `json:"heartbeat,omitempty"`
-}
-
-// CmdId implements jsn_rpc.RpcUnit.
-func (*AppendEntriesRequest) CmdId() uint32 {
-	return 3
-}
-
-// Marshal implements jsn_rpc.RpcUnit.
-func (r *AppendEntriesRequest) Marshal() ([]byte, error) {
-	return json.Marshal(r)
-}
-
-// New implements jsn_rpc.RpcUnit.
-func (*AppendEntriesRequest) New() jsn_rpc.RpcUnit {
-	return new(AppendEntriesRequest)
-}
-
-// Unmarshal implements jsn_rpc.RpcUnit.
-func (r *AppendEntriesRequest) Unmarshal(in []byte) error {
-	return json.Unmarshal(in, r)
-}
-
-type AppendEntriesResponse struct {
-	CurrentTerm uint64 `json:"current_term,omitempty"`
-	Success     bool   `json:"success,omitempty"`
-}
-
-// CmdId implements jsn_rpc.RpcUnit.
-func (*AppendEntriesResponse) CmdId() uint32 {
-	return 4
-}
-
-// Marshal implements jsn_rpc.RpcUnit.
-func (r *AppendEntriesResponse) Marshal() ([]byte, error) {
-	return json.Marshal(r)
-}
-
-// New implements jsn_rpc.RpcUnit.
-func (*AppendEntriesResponse) New() jsn_rpc.RpcUnit {
-	return new(AppendEntriesResponse)
-}
-
-// Unmarshal implements jsn_rpc.RpcUnit.
-func (r *AppendEntriesResponse) Unmarshal(in []byte) error {
-	return json.Unmarshal(in, r)
-}
-
-func (r *RaftNew) registerRpc() {
-	r.rpcServer.RegisterExecutor(new(VoteRequest), r.rpcVote)
-	r.rpcServer.RegisterExecutor(new(AppendEntriesRequest), r.rpcAppendEntries)
-}
-
-func (r *RaftNew) rpcVote(in jsn_rpc.RpcUnit) (jsn_rpc.RpcUnit, error) {
-
-	args, _ := in.(*VoteRequest)
+	args, _ := in.(*pb.VoteRequest)
 	if nil == args {
 		return nil, errors.New("invalid request")
 	}
@@ -150,13 +34,13 @@ func (r *RaftNew) rpcVote(in jsn_rpc.RpcUnit) (jsn_rpc.RpcUnit, error) {
 		}
 
 	}()
-	reply := new(VoteResponse)
+	reply := new(pb.VoteResponse)
 	err := r.Vote(args, reply)
 	return reply, err
 }
 
-func (r *RaftNew) rpcAppendEntries(in jsn_rpc.RpcUnit) (jsn_rpc.RpcUnit, error) {
-	args, _ := in.(*AppendEntriesRequest)
+func (r *Raft) rpcAppendEntries(in jsn_rpc.RpcUnit) (jsn_rpc.RpcUnit, error) {
+	args, _ := in.(*pb.AppendEntriesRequest)
 	if nil == args {
 		return nil, errors.New("invalid request")
 	}
@@ -169,12 +53,12 @@ func (r *RaftNew) rpcAppendEntries(in jsn_rpc.RpcUnit) (jsn_rpc.RpcUnit, error) 
 		}
 
 	}()
-	reply := new(AppendEntriesResponse)
+	reply := new(pb.AppendEntriesResponse)
 	err := r.AppendEntries(args, reply)
 	return reply, err
 }
 
-func (r *RaftNew) Vote(args *VoteRequest, reply *VoteResponse) error {
+func (r *Raft) Vote(args *pb.VoteRequest, reply *pb.VoteResponse) error {
 	wrap := &rpcWrap{
 		In:   args,
 		Resp: reply,
@@ -185,7 +69,7 @@ func (r *RaftNew) Vote(args *VoteRequest, reply *VoteResponse) error {
 	return err
 }
 
-func (r *RaftNew) AppendEntries(args *AppendEntriesRequest, reply *AppendEntriesResponse) error {
+func (r *Raft) AppendEntries(args *pb.AppendEntriesRequest, reply *pb.AppendEntriesResponse) error {
 	wrap := &rpcWrap{
 		In:   args,
 		Resp: reply,
@@ -202,13 +86,13 @@ type rpcWrap struct {
 	Done chan error
 }
 
-func (r *RaftNew) handlerRpc(wrap *rpcWrap) {
+func (r *Raft) handlerRpc(wrap *rpcWrap) {
 	var err error
 	switch tp := wrap.In.(type) {
-	case *VoteRequest:
-		err = r.vote(tp, wrap.Resp.(*VoteResponse))
-	case *AppendEntriesRequest:
-		err = r.appendEntries(tp, wrap.Resp.(*AppendEntriesResponse))
+	case *pb.VoteRequest:
+		err = r.vote(tp, wrap.Resp.(*pb.VoteResponse))
+	case *pb.AppendEntriesRequest:
+		err = r.appendEntries(tp, wrap.Resp.(*pb.AppendEntriesResponse))
 	}
 	wrap.Done <- err
 }
@@ -217,13 +101,13 @@ var (
 	clis = sync.Map{}
 )
 
-func (r *RaftNew) rpcCall(who string, args jsn_rpc.RpcUnit, reply jsn_rpc.RpcUnit, done <-chan struct{}, timeout time.Duration) error {
+func (r *Raft) rpcCall(who string, args jsn_rpc.RpcUnit, reply jsn_rpc.RpcUnit, done <-chan struct{}, timeout time.Duration) error {
 	err := r.rpcClients[who].Call(args, reply, done, timeout)
 	// err := rpcCall(who, args, reply, done, timeout)
 	return err
 }
 
-func (r *RaftNew) vote(args *VoteRequest, reply *VoteResponse) error {
+func (r *Raft) vote(args *pb.VoteRequest, reply *pb.VoteResponse) error {
 	reply.CurrentTerm = r.getCurrentTerm()
 	reply.VoteGranted = false
 
@@ -248,9 +132,13 @@ func (r *RaftNew) vote(args *VoteRequest, reply *VoteResponse) error {
 
 	lastLogIndex, lastLogTerm := r.lastLog()
 	if lastLogTerm > args.LastLogTerm {
+		r.logger.Info("[%v] vote candiate last log term %v mine %v",
+			r.who, args.LastLogTerm, lastLogTerm)
 		return nil
 	}
 	if lastLogTerm == args.LastLogTerm && lastLogIndex > args.LastLogIndex {
+		r.logger.Info("[%v] vote candiate last log index,term [%v,%v] mine [%v,%v]",
+			r.who, args.LastLogTerm, args.LastLogIndex, args.LastLogTerm, lastLogIndex, lastLogTerm)
 		return nil
 	}
 	reply.VoteGranted = true
@@ -259,11 +147,12 @@ func (r *RaftNew) vote(args *VoteRequest, reply *VoteResponse) error {
 
 	r.logger.Debug("[%v] vote for %v term %v",
 		r.who, string(args.CandidateId), r.getCurrentTerm())
+	r.lastFollowerCheck = time.Now()
 	return nil
 
 }
 
-func (r *RaftNew) appendEntries(args *AppendEntriesRequest, reply *AppendEntriesResponse) error {
+func (r *Raft) appendEntries(args *pb.AppendEntriesRequest, reply *pb.AppendEntriesResponse) error {
 
 	reply.CurrentTerm = r.getCurrentTerm()
 	reply.Success = false
@@ -293,6 +182,7 @@ func (r *RaftNew) appendEntries(args *AppendEntriesRequest, reply *AppendEntries
 	}
 
 	if args.Heartbeat {
+		r.lastFollowerCheck = time.Now()
 		return nil
 	}
 
@@ -304,35 +194,35 @@ func (r *RaftNew) appendEntries(args *AppendEntriesRequest, reply *AppendEntries
 
 	lastLogIndex, _ := r.lastLog()
 
-	var entries []*JsnLog
+	var entries []*pb.JsnLog
 	for i, entry := range args.Entries {
-		if entry.Index() > lastLogIndex {
+		if entry.Index > lastLogIndex {
 			entries = args.Entries[i:]
 			break
 		}
-		jlog := r.getLog(entry.Index())
+		jlog := r.getLog(entry.Index)
 		if nil == jlog {
 			return nil
 		}
-		if jlog.Term() != entry.Term() {
-			r.logDeleteFrom(entry.Index())
+		if jlog.Term != entry.Term {
+			r.logDeleteFrom(entry.Index)
 			entries = args.Entries[i:]
 			break
 		}
 	}
 
 	if 0 != len(entries) {
-		r.logStore(entries)
+		r.appendLogs(entries)
 	}
-	if args.LeaderCommit > r.getCommitIndex() {
+	if args.LeaderCommitIndex > r.getCommitIndex() {
 		lastLogIndex, _ = r.lastLog()
-		if lastLogIndex < args.LeaderCommit {
+		if lastLogIndex < args.LeaderCommitIndex {
 			r.setCommitIndex(lastLogIndex)
 		} else {
-			r.setCommitIndex(args.LeaderCommit)
+			r.setCommitIndex(args.LeaderCommitIndex)
 		}
 	}
 	reply.Success = true
-
+	r.lastFollowerCheck = time.Now()
 	return nil
 }

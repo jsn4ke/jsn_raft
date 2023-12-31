@@ -1,0 +1,47 @@
+syntax = "proto3";
+
+package pb;
+
+option go_package="../pb";
+
+
+enum Cmd {
+    CmdNone = 0;
+    Cmd_VoterRequest = 1;
+    Cmd_VoteResponse = 2;
+    Cmd_AppendEntriesRequest = 3;
+    Cmd_AppendEntriesResponse = 4;
+}
+
+message VoteRequest {
+    uint64 term = 1;
+    bytes candidateId = 2;
+    int64 lastLogIndex = 3;
+    uint64 lastLogTerm = 4;
+}
+
+message VoteResponse {
+    uint64 currentTerm = 1;
+    bool voteGranted = 2;
+}
+
+message JsnLog {
+    int64 index = 1;
+    uint64 term = 2;
+    bytes cmd = 3;
+}
+
+message AppendEntriesRequest {
+    uint64 term = 1;
+    bytes leaderId = 2;
+    int64 prevLogIndex = 3;
+    uint64  prevLogTerm = 4;
+    repeated JsnLog entries = 5;
+    int64 leaderCommitIndex = 6;
+    bool heartbeat = 7;
+}
+
+message AppendEntriesResponse {
+    uint64 currentTerm = 1;
+    bool success = 2;
+}

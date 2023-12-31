@@ -1,8 +1,12 @@
 package jsn_raft
 
-import "time"
+import (
+	"time"
 
-func newReplication(raft *RaftNew, commit *commitment, who string,
+	"github.com/jsn4ke/jsn_raft/v2/pb"
+)
+
+func newReplication(raft *Raft, commit *commitment, who string,
 	done <-chan struct{}, usurper chan<- uint64, fetch <-chan struct{}) *replication {
 	r := new(replication)
 
@@ -21,7 +25,7 @@ func newReplication(raft *RaftNew, commit *commitment, who string,
 type replication struct {
 	who string
 
-	raft       *RaftNew
+	raft       *Raft
 	commitment *commitment
 
 	fetch   <-chan struct{}
@@ -32,16 +36,16 @@ type replication struct {
 }
 
 func (r *replication) heartbeat() {
-	req := &AppendEntriesRequest{
-		Term:         r.raft.getCurrentTerm(),
-		LeaderId:     []byte(r.raft.who),
-		PrevLogIndex: 0,
-		PrevLogTerm:  0,
-		Entries:      []*JsnLog{},
-		LeaderCommit: 0,
-		Heartbeat:    true,
+	req := &pb.AppendEntriesRequest{
+		Term:              r.raft.getCurrentTerm(),
+		LeaderId:          []byte(r.raft.who),
+		PrevLogIndex:      0,
+		PrevLogTerm:       0,
+		Entries:           []*pb.JsnLog{},
+		LeaderCommitIndex: 0,
+		Heartbeat:         true,
 	}
-	resp := new(AppendEntriesResponse)
+	resp := new(pb.AppendEntriesResponse)
 	// err := r.raft.rpcClients[r.who].Call(req, resp, r.done, r.raft.rpcTimeout())
 	err := r.raft.rpcCall(r.who, req, resp, r.done, r.raft.rpcTimeout())
 	if nil != err {
@@ -59,13 +63,13 @@ func (r *replication) heartbeat() {
 }
 
 func (r *replication) replicateTo() {
-	req := &AppendEntriesRequest{
-		Term:         r.raft.getCurrentTerm(),
-		LeaderId:     []byte(r.raft.who),
-		PrevLogIndex: 0,
-		PrevLogTerm:  0,
-		Entries:      []*JsnLog{},
-		LeaderCommit: 0,
+	req := &pb.AppendEntriesRequest{
+		Term:              r.raft.getCurrentTerm(),
+		LeaderId:          []byte(r.raft.who),
+		PrevLogIndex:      0,
+		PrevLogTerm:       0,
+		Entries:           []*pb.JsnLog{},
+		LeaderCommitIndex: 0,
 	}
 
 	nextIndex := r.commitment.getNextIndex(r.who)
@@ -77,17 +81,17 @@ func (r *replication) replicateTo() {
 				r.raft.who, r.who, nextIndex-1)
 			return
 		}
-		req.PrevLogIndex = jlog.Index()
-		req.PrevLogTerm = jlog.Term()
+		req.PrevLogIndex = jlog.Index
+		req.PrevLogTerm = jlog.Term
 	}
 
-	req.LeaderCommit = r.raft.getCommitIndex()
+	req.LeaderCommitIndex = r.raft.getCommitIndex()
 
 	lastLogIndex, _ := r.raft.lastLog()
 
 	req.Entries = r.raft.logEntries(nextIndex, lastLogIndex)
 
-	resp := new(AppendEntriesResponse)
+	resp := new(pb.AppendEntriesResponse)
 	// err := r.raft.rpcClients[r.who].Call(req, resp, r.done, r.raft.rpcTimeout())
 	err := r.raft.rpcCall(r.who, req, resp, r.done, r.raft.rpcTimeout())
 
@@ -106,7 +110,7 @@ func (r *replication) replicateTo() {
 		if 0 == len(req.Entries) {
 			return
 		}
-		index := req.Entries[len(req.Entries)-1].Index()
+		index := req.Entries[len(req.Entries)-1].Index
 		r.commitment.updateIndex(r.who, index+1, index)
 
 		r.raft.logger.Info("[%v] replicate to %v success next index modify %v",

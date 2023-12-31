@@ -7,13 +7,7 @@ import (
 )
 
 var (
-	logcheck = make(chan struct {
-		idx  int32
-		body string
-	}, 128)
-)
-var (
-	rafts = map[string]*RaftNew{}
+	rafts = map[string]*Raft{}
 )
 
 func rpcCall(who string, args jsn_rpc.RpcUnit, reply jsn_rpc.RpcUnit, done <-chan struct{}, timeout time.Duration) error {

@@ -14,16 +14,16 @@ type commitment struct {
 
 	who map[string]int
 
-	nextIndex  []uint64
-	matchIndex []uint64
+	nextIndex  []int64
+	matchIndex []int64
 
-	commitIndex uint64
+	commitIndex int64
 
 	// 一个任期一个 term
-	leaderStartIndex uint64
+	leaderStartIndex int64
 }
 
-func (c *commitment) getNextIndex(who string) uint64 {
+func (c *commitment) getNextIndex(who string) int64 {
 	c.rw.RLock()
 	defer c.rw.RUnlock()
 
@@ -34,14 +34,14 @@ func (c *commitment) getNextIndex(who string) uint64 {
 	return c.nextIndex[slot]
 }
 
-func (c *commitment) getCommitmentIndex() uint64 {
+func (c *commitment) getCommitmentIndex() int64 {
 	c.rw.RLock()
 	defer c.rw.RUnlock()
 
 	return c.commitIndex
 }
 
-func (c *commitment) updateIndex(who string, nextIndex uint64, matchIndex uint64) {
+func (c *commitment) updateIndex(who string, nextIndex int64, matchIndex int64) {
 	c.rw.Lock()
 	slot, ok := c.who[who]
 	if !ok {
@@ -74,7 +74,7 @@ func (c *commitment) adapt() {
 	c.rw.RLock()
 	defer c.rw.RUnlock()
 
-	matches := make([]uint64, len(c.matchIndex))
+	matches := make([]int64, len(c.matchIndex))
 	copy(matches, c.matchIndex)
 	sort.Slice(matches, func(i, j int) bool {
 		return matches[i] < matches[j]
