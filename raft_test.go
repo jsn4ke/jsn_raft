@@ -35,7 +35,7 @@ func TestNewRaftNew(t *testing.T) {
 	for _, v := range rs {
 		v.Go()
 	}
-	tk2 := time.NewTicker(time.Second / 1)
+	// tk2 := time.NewTicker(time.Second / 100000)
 	transfer := time.NewTicker(randomTimeout(time.Millisecond * 3000))
 
 	for {
@@ -51,7 +51,7 @@ func TestNewRaftNew(t *testing.T) {
 
 				}
 			}
-		case <-tk2.C:
+		default:
 			for _, v := range rs {
 				if v.getServerState() == leader {
 					v.logModify <- &pb.JsnLog{

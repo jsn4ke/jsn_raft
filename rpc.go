@@ -205,7 +205,7 @@ func (r *Raft) appendEntries(args *pb.AppendEntriesRequest, reply *pb.AppendEntr
 			return nil
 		}
 		if jlog.Term != entry.Term {
-			r.logDeleteFrom(entry.Index)
+			r.logTruncate(entry.Index)
 			entries = args.Entries[i:]
 			break
 		}

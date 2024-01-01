@@ -38,9 +38,8 @@ func (r *Raft) logEntries(fromIndex, toIndex int64) []*pb.JsnLog {
 	return res
 }
 
-func (r *Raft) logDeleteFrom(logIndex int64) {
-	lastIndex, _ := r.lastLog()
-	r.logStore.Remove(logIndex, lastIndex)
+func (r *Raft) logTruncate(logIndex int64) {
+	r.logStore.Truncate(logIndex)
 }
 
 func (r *Raft) appendLog(log *pb.JsnLog) {
@@ -120,19 +119,20 @@ func (s *memoryStore) AppendEntries(entries []*pb.JsnLog) {
 	}
 }
 
-func (s *memoryStore) Remove(min, max int64) error {
+func (s *memoryStore) Truncate(min int64) error {
 	s.rw.Lock()
 	defer s.rw.Unlock()
 
+	max := s.lastIndex
 	for i := min; i <= max; i++ {
 		delete(s.logs, i)
 	}
 
-	if min < s.startIndex {
+	if min <= s.startIndex {
 		s.startIndex = max + 1
 	}
 
-	if max > s.lastIndex {
+	if max >= s.lastIndex {
 		s.lastIndex = min - 1
 	}
 
