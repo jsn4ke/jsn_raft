@@ -2,12 +2,12 @@ syntax = "proto3";
 
 package pb;
 
-option go_package="../pb";
+option go_package="./pb";
 
 
 enum Cmd {
     CmdNone = 0;
-    Cmd_VoterRequest = 1;
+    Cmd_VoteRequest = 1;
     Cmd_VoteResponse = 2;
     Cmd_AppendEntriesRequest = 3;
     Cmd_AppendEntriesResponse = 4;
