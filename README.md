@@ -14,6 +14,9 @@
     * 处理方案，对成功的rpc进行记录时间戳，这样失败的vote不影响自己的candidate排期
 - [x] 当日志投递过快时候出现 miss index的问题
     * 触发删除min max时候边界处理异常
+- [ ] 当前test用例会引起log阻塞，后续需要更规划的api调用
+- [x] follower的commit index永远比leader小一条
+      heartbeat同步时带上commit索引，降低hb间隔，后续可单独加个timer控制这快，分离出hb
 
 ### feature
 - [x] 日志同步

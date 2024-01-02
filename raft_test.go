@@ -35,11 +35,21 @@ func TestNewRaftNew(t *testing.T) {
 	for _, v := range rs {
 		v.Go()
 	}
-	// tk2 := time.NewTicker(time.Second / 100000)
+	tk2 := time.NewTicker(time.Second / 10000)
 	transfer := time.NewTicker(randomTimeout(time.Millisecond * 3000))
 
+	hb := time.NewTimer(time.Second)
 	for {
 		select {
+		case <-hb.C:
+			for _, v := range rs {
+				idx, term := v.lastLog()
+				fmt.Printf("====[%v][%v][%v,%v,%v] \n",
+					v.getServerState(), v.who,
+					idx, term, v.getCommitIndex())
+			}
+			fmt.Println("====")
+			hb.Reset(time.Second)
 		case <-transfer.C:
 			for _, v := range rs {
 				if v.getServerState() == leader {
@@ -51,7 +61,7 @@ func TestNewRaftNew(t *testing.T) {
 
 				}
 			}
-		default:
+		case <-tk2.C:
 			for _, v := range rs {
 				if v.getServerState() == leader {
 					v.logModify <- &pb.JsnLog{

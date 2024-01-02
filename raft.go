@@ -1,6 +1,10 @@
 package jsn_raft
 
 import (
+	"fmt"
+	"os"
+	"path"
+	"runtime"
 	"sync"
 	"sync/atomic"
 	"time"
@@ -86,6 +90,36 @@ func NewRaftNew(who string, config ServerConfig) *Raft {
 
 func (r *Raft) Go() {
 	r.safeGo("fsm", r.fsm)
+	r.safeGo("reply", func() {
+		dir, err := os.Getwd()
+		if nil != err {
+			panic(err)
+		}
+		fmt.Println(dir)
+		filename := path.Join(dir, r.who)
+		fd, err := os.Create(filename)
+		if nil != err {
+			panic(err)
+		}
+		defer fd.Close()
+		commited := int64(0)
+		tk := time.NewTicker(time.Millisecond * 200)
+		for range tk.C {
+			for i := 0; i < 200; i++ {
+				if commited < r.getCommitIndex() {
+					commited++
+					jlog := r.getLog(commited)
+					if nil == jlog {
+						panic("no log")
+					}
+					fd.WriteString(fmt.Sprintf("index:%v term:%v data:%s\n", jlog.Index, jlog.Term, jlog.Cmd))
+				} else {
+					break
+				}
+				runtime.Gosched()
+			}
+		}
+	})
 }
 
 func (r *Raft) fsm() {

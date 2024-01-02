@@ -64,6 +64,12 @@ type memoryStore struct {
 	logs map[int64]*pb.JsnLog
 }
 
+func (s *memoryStore) StartIndex() int64 {
+	s.rw.RLock()
+	defer s.rw.RUnlock()
+	return s.startIndex
+}
+
 func (s *memoryStore) Last() (index int64, term uint64) {
 	s.rw.RLock()
 	defer s.rw.RUnlock()

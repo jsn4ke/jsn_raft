@@ -42,7 +42,7 @@ func (r *replication) heartbeat() {
 		PrevLogIndex:      0,
 		PrevLogTerm:       0,
 		Entries:           []*pb.JsnLog{},
-		LeaderCommitIndex: 0,
+		LeaderCommitIndex: r.raft.getCommitIndex(),
 		Heartbeat:         true,
 	}
 	resp := new(pb.AppendEntriesResponse)
@@ -125,14 +125,14 @@ func (r *replication) replicateTo() {
 }
 
 func (r *replication) run() {
-	tk := time.NewTimer(randomTimeout(r.raft.heartbeatTimeout() / 3))
+	tk := time.NewTimer(randomTimeout(r.raft.heartbeatTimeout() / 10))
 	for {
 		select {
 		case <-r.done:
 			return
 		case <-tk.C:
 			r.heartbeat()
-			tk.Reset(randomTimeout(r.raft.heartbeatTimeout() / 3))
+			tk.Reset(randomTimeout(r.raft.heartbeatTimeout() / 10))
 		case <-r.fetch:
 			r.replicateTo()
 		case <-r.retry:

@@ -31,8 +31,8 @@ func (r *Raft) runLeader() {
 		who:              make(map[string]int),
 		nextIndex:        []int64{},
 		matchIndex:       []int64{},
-		commitIndex:      0,
-		leaderStartIndex: lastLogIndex,
+		commitIndex:      r.getCommitIndex(),
+		leaderStartIndex: lastLogIndex + 1,
 	}
 
 	// 初始化 commitment
@@ -66,11 +66,35 @@ func (r *Raft) runLeader() {
 		notifyChan(v)
 	}
 
+	// todo 临时清理
 	defer func() {
 		// 通知所有replication结束
 		close(replicationDone)
+		// 清空log
+	of:
+		for {
+			select {
+			case <-r.logModify:
+			default:
+				break of
+			}
+		}
+		// 清空下
+		select {
+		case <-r.leaderTransfer:
+		default:
+		}
 	}()
 
+of:
+	// 清空log
+	for {
+		select {
+		case <-r.logModify:
+		default:
+			break of
+		}
+	}
 	// 清空下
 	select {
 	case <-r.leaderTransfer:

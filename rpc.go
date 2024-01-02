@@ -138,7 +138,7 @@ func (r *Raft) vote(args *pb.VoteRequest, reply *pb.VoteResponse) error {
 	}
 	if lastLogTerm == args.LastLogTerm && lastLogIndex > args.LastLogIndex {
 		r.logger.Info("[%v] vote candiate last log index,term [%v,%v] mine [%v,%v]",
-			r.who, args.LastLogTerm, args.LastLogIndex, args.LastLogTerm, lastLogIndex, lastLogTerm)
+			r.who, args.LastLogTerm, args.LastLogIndex, lastLogIndex, lastLogTerm)
 		return nil
 	}
 	reply.VoteGranted = true
@@ -181,10 +181,10 @@ func (r *Raft) appendEntries(args *pb.AppendEntriesRequest, reply *pb.AppendEntr
 		r.setServerState(follower)
 	}
 
-	if args.Heartbeat {
-		r.lastFollowerCheck = time.Now()
-		return nil
-	}
+	// if args.Heartbeat {
+	// 	r.lastFollowerCheck = time.Now()
+	// 	return nil
+	// }
 
 	if 0 != args.PrevLogIndex {
 		if !r.matchLog(args.PrevLogIndex, args.PrevLogTerm) {
@@ -214,6 +214,8 @@ func (r *Raft) appendEntries(args *pb.AppendEntriesRequest, reply *pb.AppendEntr
 	if 0 != len(entries) {
 		r.appendLogs(entries)
 	}
+
+	// 强保证一致性，至少learder落了，这里才能落下
 	if args.LeaderCommitIndex > r.getCommitIndex() {
 		lastLogIndex, _ = r.lastLog()
 		if lastLogIndex < args.LeaderCommitIndex {
