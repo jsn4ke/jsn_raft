@@ -1,6 +1,16 @@
 # 实现目的
 深入raft算法实现，[中文文档](https://github.com/maemual/raft-zh_cn/blob/master/raft-zh_cn.md#%E5%AF%BB%E6%89%BE%E4%B8%80%E7%A7%8D%E6%98%93%E4%BA%8E%E7%90%86%E8%A7%A3%E7%9A%84%E4%B8%80%E8%87%B4%E6%80%A7%E7%AE%97%E6%B3%95%E6%89%A9%E5%B1%95%E7%89%88)，参考了[raft库](https://github.com/hashicorp/raft)，简化相关逻辑以及方便接入。
 
+## goroutine工作
+
+* goroutine1 flow follower-candidate-leader
+* goroutine2(peers) leader-replicate
+* goroutine3(peers) candidate-vote
+* goroutine4 rpc
+* goroutine5 leader-log-marshal
+* goroutine6 log-store-unmarshal
+* goroutine7 commit-apply
+
 ## 0.0.1
 ### buglist
 - [x] 异常的rpc timeout 以及某个节点的高延迟问题
@@ -28,3 +38,11 @@
 - [ ] 支持非投票备用机
 - [ ] 配置动态更新
 - [ ] 客户端接入
+- [ ] fsm优化
+
+### optimization
+- [ ] fsm 拆分goroutine
+    * log 提交 与 apply的 序列化反序列化可以走额外的goroutine处理
+	* 比如 apply时候，进入 marshal 的channel 完成后 投递到 leader的channel
+	* 可以log记录的时候就反序列化好，等commit完成直接apply，减少时间
+	* commit update 之后，反序列化然后apply

@@ -10,6 +10,10 @@ import (
 )
 
 type (
+	// log 提交 与 apply的 序列化反序列化可以走额外的goroutine处理
+	// 比如 apply时候，进入 marshal 的channel 完成后 投递到 leader的channel
+	// 可以log记录的时候就反序列化好，等commit完成直接apply，减少时间
+	// commit update 之后，反序列化然后apply
 	Fsm struct {
 		rw sync.RWMutex
 		pb.KVStore
