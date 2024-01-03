@@ -45,6 +45,8 @@ type Raft struct {
 
 	rpcChannel chan *rpcWrap
 
+	fsm *Fsm
+
 	// rpc
 	rpcServer  *jsn_rpc.Server
 	rpcClients map[string]*jsn_rpc.Client
@@ -64,6 +66,7 @@ func NewRaftNew(who string, config ServerConfig) *Raft {
 	r.logger = new(defaultLogger)
 	r.rpcChannel = make(chan *rpcWrap, 256)
 	r.logStore = new(memoryStore)
+	r.fsm = new(Fsm)
 
 	// debug//////
 	r.logModify = make(chan *pb.JsnLog, 256)
@@ -89,7 +92,7 @@ func NewRaftNew(who string, config ServerConfig) *Raft {
 }
 
 func (r *Raft) Go() {
-	r.safeGo("fsm", r.fsm)
+	r.safeGo("flow", r.flow)
 	r.safeGo("reply", func() {
 		dir, err := os.Getwd()
 		if nil != err {
@@ -122,7 +125,7 @@ func (r *Raft) Go() {
 	})
 }
 
-func (r *Raft) fsm() {
+func (r *Raft) flow() {
 	for {
 		switch r.getServerState() {
 		case follower:
@@ -185,6 +188,10 @@ func (r *Raft) setCommitIndex(index int64) {
 	old := atomic.SwapInt64(&r.commitIndex, index)
 	r.logger.Debug("[%v] commit update from %v to %v",
 		r.who, old, index)
+
+	if index > old {
+		r.applyLog(old, index)
+	}
 }
 
 func (r *Raft) setVoteFor(who string) {

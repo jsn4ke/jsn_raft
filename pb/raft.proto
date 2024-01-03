@@ -4,6 +4,38 @@ package pb;
 
 option go_package="./pb";
 
+enum LogOperation {
+    LogOperation_None = 0;
+    LogOperation_Leader = 1;
+    LogOperation_Fsm = 2;
+}
+
+message HelpArray {
+    repeated uint64 data = 1;
+}
+
+message KVStore {
+    map<uint64, uint64> data = 1;
+}
+
+message LogCmdKV {
+    uint64 key = 1;
+    uint64 value = 2;
+}
+
+message LogCmdDelete{
+    uint64 key = 1;
+}
+
+message LogCmd {
+    LogOperation op = 1;
+
+    oneof behavior {
+        LogCmdKV update = 2;
+        LogCmdDelete delete = 3;
+        string inLeader = 4;
+    }
+}
 
 enum Cmd {
     CmdNone = 0;
